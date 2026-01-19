@@ -1,3 +1,4 @@
+import { useAuth } from "@/contexts/AuthContext";
 import { useUser } from "@/contexts/UserContext";
 import {
   Select,
@@ -19,12 +20,25 @@ const grades = [
 ];
 
 export function GradeSelector() {
+  const { profile, updateProfile } = useAuth();
   const { gradeLevel, setGradeLevel } = useUser();
+
+  const currentGrade = profile?.grade_level || gradeLevel;
+
+  const handleChange = async (value: string) => {
+    const grade = parseInt(value, 10);
+    setGradeLevel(grade);
+    
+    // If logged in, also update profile
+    if (profile) {
+      await updateProfile({ grade_level: grade });
+    }
+  };
 
   return (
     <Select
-      value={gradeLevel > 0 ? gradeLevel.toString() : undefined}
-      onValueChange={(value) => setGradeLevel(parseInt(value, 10))}
+      value={currentGrade > 0 ? currentGrade.toString() : undefined}
+      onValueChange={handleChange}
     >
       <SelectTrigger className="w-36 rounded-full bg-secondary/50">
         <SelectValue placeholder="Grade level" />
