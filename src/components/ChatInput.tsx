@@ -1,8 +1,10 @@
-import { useState, useRef, KeyboardEvent } from "react";
-import { Send, ImagePlus, X, Loader2 } from "lucide-react";
+import { useState, useRef, useEffect, KeyboardEvent } from "react";
+import { Send, ImagePlus, X, Loader2, Mic, MicOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { useVoiceInput } from "@/hooks/useVoiceInput";
+import { toast } from "sonner";
 
 interface ChatInputProps {
   onSend: (message: string, imageData?: string) => void;
@@ -17,19 +19,35 @@ export function ChatInput({ onSend, isLoading, disabled }: ChatInputProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  const { isListening, transcript, toggleListening } = useVoiceInput({
+    onTranscript: (text) => {
+      setMessage((prev) => prev + (prev ? " " : "") + text);
+    },
+    onError: (error) => {
+      toast.error(error);
+    },
+  });
+
+  // Update message with interim transcript
+  useEffect(() => {
+    if (isListening && transcript) {
+      // Show interim results while speaking
+    }
+  }, [isListening, transcript]);
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     // Validate file type
     if (!file.type.startsWith("image/")) {
-      alert("Please upload an image file");
+      toast.error("Please upload an image file");
       return;
     }
 
     // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      alert("Image must be smaller than 5MB");
+      toast.error("Image must be smaller than 5MB");
       return;
     }
 
@@ -97,6 +115,14 @@ export function ChatInput({ onSend, isLoading, disabled }: ChatInputProps) {
         </div>
       )}
 
+      {/* Voice transcript indicator */}
+      {isListening && (
+        <div className="mb-2 flex items-center gap-2 text-sm text-primary animate-pulse">
+          <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+          Listening... {transcript && `"${transcript}"`}
+        </div>
+      )}
+
       <div className="flex items-end gap-2">
         {/* Image upload button */}
         <div>
@@ -123,6 +149,25 @@ export function ChatInput({ onSend, isLoading, disabled }: ChatInputProps) {
           </Button>
         </div>
 
+        {/* Voice input button */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn(
+            "rounded-full",
+            isListening && "bg-red-100 text-red-600 dark:bg-red-900/30"
+          )}
+          onClick={toggleListening}
+          disabled={isLoading || disabled}
+          aria-label={isListening ? "Stop recording" : "Start voice input"}
+        >
+          {isListening ? (
+            <MicOff className="h-5 w-5" />
+          ) : (
+            <Mic className="h-5 w-5" />
+          )}
+        </Button>
+
         {/* Text input */}
         <div className="flex-1 relative">
           <Textarea
@@ -133,6 +178,8 @@ export function ChatInput({ onSend, isLoading, disabled }: ChatInputProps) {
             placeholder={
               imagePreview
                 ? "Ask about this homework..."
+                : isListening
+                ? "Listening..."
                 : "Ask me anything about your homework!"
             }
             className="min-h-[44px] max-h-32 resize-none rounded-2xl pr-12 bg-muted border-0 focus-visible:ring-2 focus-visible:ring-primary"

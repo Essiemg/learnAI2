@@ -1,16 +1,18 @@
 import { useState } from "react";
-import { ClipboardList, CheckCircle, XCircle, Sparkles, Loader2, Trophy } from "lucide-react";
+import { ClipboardList, CheckCircle, XCircle, Sparkles, Loader2, Trophy, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { TopicSelector } from "@/components/TopicSelector";
 import { useTopic } from "@/contexts/TopicContext";
 import { useUser } from "@/contexts/UserContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useSpeech } from "@/hooks/useSpeech";
 
 interface Question {
   id: string;
@@ -31,9 +33,13 @@ interface QuizState {
 export default function Quizzes() {
   const { currentTopic } = useTopic();
   const { gradeLevel } = useUser();
+  const { profile } = useAuth();
   const [quiz, setQuiz] = useState<QuizState | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
+  const { speak, stop, isSpeaking } = useSpeech();
+
+  const effectiveGradeLevel = profile?.grade_level || gradeLevel;
 
   const generateQuiz = async () => {
     if (!currentTopic) {
@@ -43,55 +49,24 @@ export default function Quizzes() {
 
     setIsGenerating(true);
     try {
-      const { data, error } = await supabase.functions.invoke("tutor-chat", {
+      const { data, error } = await supabase.functions.invoke("generate-content", {
         body: {
-          messages: [
-            {
-              role: "user",
-              content: `Generate a 5-question multiple choice quiz about "${currentTopic.name}" for grade ${gradeLevel}.
-              
-              Return ONLY a valid JSON array with exactly this format, no other text:
-              [
-                {
-                  "question": "the question text",
-                  "options": ["option A", "option B", "option C", "option D"],
-                  "correctAnswer": 0,
-                  "explanation": "brief explanation of why this is correct"
-                }
-              ]
-              
-              correctAnswer should be the index (0-3) of the correct option.
-              Make questions age-appropriate and educational.`,
-            },
-          ],
-          gradeLevel,
+          type: "quiz",
+          topic: currentTopic.name,
+          gradeLevel: effectiveGradeLevel,
+          count: 5,
         },
       });
 
       if (error) throw error;
 
-      // Parse the response
-      let content = "";
-      if (typeof data === "string") {
-        const lines = data.split("\n");
-        for (const line of lines) {
-          if (line.startsWith("data: ") && line !== "data: [DONE]") {
-            try {
-              const parsed = JSON.parse(line.slice(6));
-              content += parsed.choices?.[0]?.delta?.content || "";
-            } catch {}
-          }
-        }
-      } else {
-        content = data?.choices?.[0]?.message?.content || "";
-      }
-
-      const jsonMatch = content.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        const parsedQuestions = JSON.parse(jsonMatch[0]);
-        const formattedQuestions = parsedQuestions.map((q: any, idx: number) => ({
+      if (data?.questions) {
+        const formattedQuestions = data.questions.map((q: any, idx: number) => ({
           id: `q-${idx}`,
-          ...q,
+          question: q.question,
+          options: q.options,
+          correctAnswer: q.correctAnswer,
+          explanation: q.explanation,
         }));
         
         setQuiz({
@@ -104,7 +79,7 @@ export default function Quizzes() {
         setSelectedAnswer(null);
         toast.success("Quiz generated!");
       } else {
-        throw new Error("Could not parse quiz");
+        throw new Error("No questions generated");
       }
     } catch (error) {
       console.error("Error generating quiz:", error);
@@ -152,6 +127,18 @@ export default function Quizzes() {
       const activity = JSON.parse(localStorage.getItem("studybuddy_activity") || "{}");
       activity.quizzesCompleted = (activity.quizzesCompleted || 0) + 1;
       localStorage.setItem("studybuddy_activity", JSON.stringify(activity));
+    }
+  };
+
+  const handleSpeakQuestion = () => {
+    const currentQuestion = quiz?.questions[quiz.currentIndex];
+    if (!currentQuestion) return;
+    
+    if (isSpeaking) {
+      stop();
+    } else {
+      const text = `${currentQuestion.question}. Option A: ${currentQuestion.options[0]}. Option B: ${currentQuestion.options[1]}. Option C: ${currentQuestion.options[2]}. Option D: ${currentQuestion.options[3]}.`;
+      speak(text);
     }
   };
 
@@ -204,9 +191,19 @@ export default function Quizzes() {
         <Card>
           <CardHeader>
             <div className="space-y-2">
-              <div className="flex justify-between text-sm">
+              <div className="flex justify-between items-center text-sm">
                 <span>Question {quiz.currentIndex + 1} of {quiz.questions.length}</span>
-                <span>{Math.round(progress)}%</span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleSpeakQuestion}
+                    className={cn("h-8 w-8", isSpeaking && "bg-primary text-primary-foreground")}
+                  >
+                    {isSpeaking ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                  </Button>
+                  <span>{Math.round(progress)}%</span>
+                </div>
               </div>
               <Progress value={progress} className="h-2" />
             </div>
@@ -276,7 +273,7 @@ export default function Quizzes() {
           {/* Review Answers */}
           <div className="space-y-4">
             <h3 className="text-lg font-medium">Review Answers</h3>
-            {quiz.questions.map((q, idx) => {
+            {quiz.questions.map((q) => {
               const userAnswer = quiz.answers[q.id];
               const isCorrect = userAnswer === q.correctAnswer;
               
