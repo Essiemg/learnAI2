@@ -1,13 +1,15 @@
-import { useState, useEffect } from "react";
-import { Layers, Shuffle, ChevronLeft, ChevronRight, RotateCcw, Sparkles, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { Layers, Shuffle, ChevronLeft, ChevronRight, RotateCcw, Sparkles, Loader2, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { TopicSelector } from "@/components/TopicSelector";
 import { useTopic } from "@/contexts/TopicContext";
 import { useUser } from "@/contexts/UserContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useSpeech } from "@/hooks/useSpeech";
 
 interface Flashcard {
   id: string;
@@ -18,10 +20,14 @@ interface Flashcard {
 export default function Flashcards() {
   const { currentTopic } = useTopic();
   const { gradeLevel } = useUser();
+  const { profile, role } = useAuth();
   const [cards, setCards] = useState<Flashcard[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const { speak, stop, isSpeaking } = useSpeech();
+
+  const effectiveGradeLevel = profile?.grade_level || gradeLevel;
 
   const generateFlashcards = async () => {
     if (!currentTopic) {
@@ -31,50 +37,19 @@ export default function Flashcards() {
 
     setIsGenerating(true);
     try {
-      const { data, error } = await supabase.functions.invoke("tutor-chat", {
+      const { data, error } = await supabase.functions.invoke("generate-content", {
         body: {
-          messages: [
-            {
-              role: "user",
-              content: `Generate 5 flashcards for studying "${currentTopic.name}" at grade ${gradeLevel} level. 
-              
-              Return ONLY a valid JSON array with exactly this format, no other text:
-              [
-                {"front": "question or term", "back": "answer or definition"},
-                {"front": "question or term", "back": "answer or definition"}
-              ]
-              
-              Make the content age-appropriate and educational.`,
-            },
-          ],
-          gradeLevel,
+          type: "flashcards",
+          topic: currentTopic.name,
+          gradeLevel: effectiveGradeLevel,
+          count: 5,
         },
       });
 
       if (error) throw error;
 
-      // Parse the response - handle streaming format
-      let content = "";
-      if (typeof data === "string") {
-        // Handle SSE format
-        const lines = data.split("\n");
-        for (const line of lines) {
-          if (line.startsWith("data: ") && line !== "data: [DONE]") {
-            try {
-              const parsed = JSON.parse(line.slice(6));
-              content += parsed.choices?.[0]?.delta?.content || "";
-            } catch {}
-          }
-        }
-      } else {
-        content = data?.choices?.[0]?.message?.content || "";
-      }
-
-      // Extract JSON from response
-      const jsonMatch = content.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        const parsedCards = JSON.parse(jsonMatch[0]);
-        const formattedCards = parsedCards.map((card: any, idx: number) => ({
+      if (data?.flashcards) {
+        const formattedCards = data.flashcards.map((card: any, idx: number) => ({
           id: `card-${idx}`,
           front: card.front,
           back: card.back,
@@ -90,7 +65,7 @@ export default function Flashcards() {
         
         toast.success(`Generated ${formattedCards.length} flashcards!`);
       } else {
-        throw new Error("Could not parse flashcards");
+        throw new Error("No flashcards generated");
       }
     } catch (error) {
       console.error("Error generating flashcards:", error);
@@ -114,6 +89,18 @@ export default function Flashcards() {
     setCards((prev) => [...prev].sort(() => Math.random() - 0.5));
     setCurrentIndex(0);
     setIsFlipped(false);
+  };
+
+  const handleSpeak = () => {
+    const currentCard = cards[currentIndex];
+    if (!currentCard) return;
+    
+    if (isSpeaking) {
+      stop();
+    } else {
+      const text = isFlipped ? currentCard.back : currentCard.front;
+      speak(text);
+    }
   };
 
   const currentCard = cards[currentIndex];
@@ -216,6 +203,14 @@ export default function Flashcards() {
             </Button>
             <Button variant="outline" size="icon" onClick={handleShuffle}>
               <Shuffle className="h-5 w-5" />
+            </Button>
+            <Button 
+              variant="outline" 
+              size="icon" 
+              onClick={handleSpeak}
+              className={cn(isSpeaking && "bg-primary text-primary-foreground")}
+            >
+              {isSpeaking ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
             </Button>
             <Button variant="outline" size="icon" onClick={() => setCards([])}>
               <RotateCcw className="h-5 w-5" />
