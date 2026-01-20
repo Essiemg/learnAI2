@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Layers, Shuffle, ChevronLeft, ChevronRight, RotateCcw, Sparkles, Loader2, Volume2, VolumeX } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Layers, Shuffle, ChevronLeft, ChevronRight, RotateCcw, Sparkles, Loader2, Volume2, VolumeX, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { TopicSelector } from "@/components/TopicSelector";
@@ -10,6 +10,8 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useSpeech } from "@/hooks/useSpeech";
+import { useFlashcardHistory } from "@/hooks/useFlashcardHistory";
+import { HistoryPanel } from "@/components/HistoryPanel";
 
 interface Flashcard {
   id: string;
@@ -20,14 +22,32 @@ interface Flashcard {
 export default function Flashcards() {
   const { currentTopic } = useTopic();
   const { gradeLevel } = useUser();
-  const { profile, role } = useAuth();
+  const { user, profile, role } = useAuth();
   const [cards, setCards] = useState<Flashcard[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [currentSessionTopic, setCurrentSessionTopic] = useState<string | null>(null);
   const { speak, stop, isSpeaking } = useSpeech();
 
+  const {
+    sessions,
+    saveSession,
+    loadSession,
+    deleteSession,
+  } = useFlashcardHistory();
+
   const effectiveGradeLevel = profile?.grade_level || gradeLevel;
+
+  // Auto-save session when cards change
+  useEffect(() => {
+    if (user && cards.length > 0 && currentSessionTopic) {
+      const timeoutId = setTimeout(() => {
+        saveSession(currentSessionTopic, cards, currentIndex);
+      }, 1000);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [cards, currentIndex, currentSessionTopic, user, saveSession]);
 
   const generateFlashcards = async () => {
     if (!currentTopic) {
@@ -57,12 +77,13 @@ export default function Flashcards() {
         setCards(formattedCards);
         setCurrentIndex(0);
         setIsFlipped(false);
-        
+        setCurrentSessionTopic(currentTopic.name);
+
         // Track activity
         const activity = JSON.parse(localStorage.getItem("studybuddy_activity") || "{}");
         activity.flashcardsStudied = (activity.flashcardsStudied || 0) + formattedCards.length;
         localStorage.setItem("studybuddy_activity", JSON.stringify(activity));
-        
+
         toast.success(`Generated ${formattedCards.length} flashcards!`);
       } else {
         throw new Error("No flashcards generated");
@@ -94,7 +115,7 @@ export default function Flashcards() {
   const handleSpeak = () => {
     const currentCard = cards[currentIndex];
     if (!currentCard) return;
-    
+
     if (isSpeaking) {
       stop();
     } else {
@@ -103,7 +124,41 @@ export default function Flashcards() {
     }
   };
 
+  const handleSelectSession = (sessionId: string) => {
+    const session = loadSession(sessionId);
+    if (session) {
+      setCards(session.cards);
+      setCurrentIndex(session.current_index);
+      setCurrentSessionTopic(session.topic);
+      setIsFlipped(false);
+      toast.success(`Loaded "${session.topic}" flashcards`);
+    }
+  };
+
+  const handleDeleteSession = async (sessionId: string) => {
+    const success = await deleteSession(sessionId);
+    if (success) {
+      toast.success("Session deleted");
+    } else {
+      toast.error("Failed to delete session");
+    }
+  };
+
+  const handleReset = () => {
+    setCards([]);
+    setCurrentIndex(0);
+    setIsFlipped(false);
+    setCurrentSessionTopic(null);
+  };
+
   const currentCard = cards[currentIndex];
+
+  const historyItems = sessions.map((s) => ({
+    id: s.id,
+    title: s.topic,
+    subtitle: `${s.cards.length} cards`,
+    date: s.updated_at,
+  }));
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
@@ -118,11 +173,19 @@ export default function Flashcards() {
             AI-generated flashcards to help you study
           </p>
         </div>
-        <TopicSelector />
+        <div className="flex items-center gap-2">
+          <HistoryPanel
+            flashcardSessions={historyItems}
+            onSelectFlashcard={handleSelectSession}
+            onDeleteFlashcard={handleDeleteSession}
+            activeTab="flashcards"
+          />
+          <TopicSelector />
+        </div>
       </div>
 
       {/* Generate Button */}
-      <div className="flex justify-center">
+      <div className="flex justify-center gap-2">
         <Button
           size="lg"
           onClick={generateFlashcards}
@@ -143,6 +206,14 @@ export default function Flashcards() {
           )}
         </Button>
       </div>
+
+      {/* Current Session Info */}
+      {currentSessionTopic && cards.length > 0 && (
+        <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+          <History className="h-4 w-4" />
+          Studying: {currentSessionTopic}
+        </div>
+      )}
 
       {/* Flashcard Display */}
       {cards.length > 0 && currentCard && (
@@ -204,15 +275,15 @@ export default function Flashcards() {
             <Button variant="outline" size="icon" onClick={handleShuffle}>
               <Shuffle className="h-5 w-5" />
             </Button>
-            <Button 
-              variant="outline" 
-              size="icon" 
+            <Button
+              variant="outline"
+              size="icon"
               onClick={handleSpeak}
               className={cn(isSpeaking && "bg-primary text-primary-foreground")}
             >
               {isSpeaking ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
             </Button>
-            <Button variant="outline" size="icon" onClick={() => setCards([])}>
+            <Button variant="outline" size="icon" onClick={handleReset}>
               <RotateCcw className="h-5 w-5" />
             </Button>
           </div>
@@ -227,6 +298,11 @@ export default function Flashcards() {
           <p className="text-muted-foreground mb-4">
             Select a topic and generate AI-powered flashcards to start studying.
           </p>
+          {sessions.length > 0 && (
+            <p className="text-sm text-muted-foreground">
+              Or click the <History className="h-4 w-4 inline" /> button to continue a previous session.
+            </p>
+          )}
         </Card>
       )}
     </div>

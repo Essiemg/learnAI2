@@ -145,6 +145,10 @@ export function useChat(gradeLevel: number) {
     setState({ messages: [], isLoading: false, error: null });
   }, []);
 
+  const setMessages = useCallback((messages: Message[]) => {
+    setState((prev) => ({ ...prev, messages }));
+  }, []);
+
   const cancelRequest = useCallback(() => {
     abortControllerRef.current?.abort();
   }, []);
@@ -155,6 +159,7 @@ export function useChat(gradeLevel: number) {
     error: state.error,
     sendMessage,
     clearMessages,
+    setMessages,
     cancelRequest,
   };
 }
