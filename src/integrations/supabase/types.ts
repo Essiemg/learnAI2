@@ -14,6 +14,96 @@ export type Database = {
   }
   public: {
     Tables: {
+      chat_sessions: {
+        Row: {
+          created_at: string
+          id: string
+          messages: Json
+          topic: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          messages?: Json
+          topic?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          messages?: Json
+          topic?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      essay_submissions: {
+        Row: {
+          content: string
+          created_at: string
+          feedback: Json | null
+          id: string
+          overall_score: number | null
+          title: string | null
+          topic: string | null
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          feedback?: Json | null
+          id?: string
+          overall_score?: number | null
+          title?: string | null
+          topic?: string | null
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          feedback?: Json | null
+          id?: string
+          overall_score?: number | null
+          title?: string | null
+          topic?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      flashcard_sessions: {
+        Row: {
+          cards: Json
+          created_at: string
+          current_index: number
+          id: string
+          topic: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cards?: Json
+          created_at?: string
+          current_index?: number
+          id?: string
+          topic: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cards?: Json
+          created_at?: string
+          current_index?: number
+          id?: string
+          topic?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -54,6 +144,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      quiz_sessions: {
+        Row: {
+          answers: Json
+          created_at: string
+          id: string
+          is_completed: boolean
+          questions: Json
+          score: number | null
+          topic: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          answers?: Json
+          created_at?: string
+          id?: string
+          is_completed?: boolean
+          questions?: Json
+          score?: number | null
+          topic: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          answers?: Json
+          created_at?: string
+          id?: string
+          is_completed?: boolean
+          questions?: Json
+          score?: number | null
+          topic?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {
