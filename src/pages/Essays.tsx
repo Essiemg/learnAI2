@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FileText, Send, Loader2, CheckCircle, AlertCircle } from "lucide-react";
+import { FileText, Send, Loader2, CheckCircle, AlertCircle, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -9,8 +9,12 @@ import { Progress } from "@/components/ui/progress";
 import { TopicSelector } from "@/components/TopicSelector";
 import { useTopic } from "@/contexts/TopicContext";
 import { useUser } from "@/contexts/UserContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useEssayHistory } from "@/hooks/useEssayHistory";
+import { HistoryPanel } from "@/components/HistoryPanel";
+import { cn } from "@/lib/utils";
 
 interface EssayFeedback {
   overallScore: number;
@@ -27,10 +31,21 @@ interface EssayFeedback {
 export default function Essays() {
   const { currentTopic } = useTopic();
   const { gradeLevel } = useUser();
+  const { user, profile } = useAuth();
   const [essayTitle, setEssayTitle] = useState("");
   const [essayContent, setEssayContent] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<EssayFeedback | null>(null);
+  const [viewingHistoryId, setViewingHistoryId] = useState<string | null>(null);
+
+  const {
+    submissions,
+    saveSubmission,
+    loadSubmission,
+    deleteSubmission,
+  } = useEssayHistory();
+
+  const effectiveGradeLevel = profile?.grade_level || gradeLevel;
 
   const handleSubmit = async () => {
     if (!essayContent.trim()) {
@@ -50,7 +65,7 @@ export default function Essays() {
           messages: [
             {
               role: "user",
-              content: `You are an essay grading assistant. Grade the following essay for a grade ${gradeLevel} student${currentTopic ? ` on the topic of "${currentTopic.name}"` : ""}.
+              content: `You are an essay grading assistant. Grade the following essay for a grade ${effectiveGradeLevel} student${currentTopic ? ` on the topic of "${currentTopic.name}"` : ""}.
 
 Title: ${essayTitle || "Untitled"}
 
@@ -74,7 +89,7 @@ Provide detailed feedback. Return ONLY a valid JSON object with exactly this for
 Be encouraging and constructive. Provide age-appropriate feedback.`,
             },
           ],
-          gradeLevel,
+          gradeLevel: effectiveGradeLevel,
         },
       });
 
@@ -100,12 +115,22 @@ Be encouraging and constructive. Provide age-appropriate feedback.`,
       if (jsonMatch) {
         const parsedFeedback = JSON.parse(jsonMatch[0]);
         setFeedback(parsedFeedback);
-        
+
+        // Save to database
+        if (user) {
+          await saveSubmission(
+            essayTitle || null,
+            currentTopic?.name || null,
+            essayContent,
+            parsedFeedback
+          );
+        }
+
         // Track activity
         const activity = JSON.parse(localStorage.getItem("studybuddy_activity") || "{}");
         activity.essaysSubmitted = (activity.essaysSubmitted || 0) + 1;
         localStorage.setItem("studybuddy_activity", JSON.stringify(activity));
-        
+
         toast.success("Essay graded!");
       } else {
         throw new Error("Could not parse feedback");
@@ -122,14 +147,45 @@ Be encouraging and constructive. Provide age-appropriate feedback.`,
     setEssayTitle("");
     setEssayContent("");
     setFeedback(null);
+    setViewingHistoryId(null);
+  };
+
+  const handleSelectEssay = (id: string) => {
+    const submission = loadSubmission(id);
+    if (submission) {
+      setEssayTitle(submission.title || "");
+      setEssayContent(submission.content);
+      setFeedback(submission.feedback);
+      setViewingHistoryId(id);
+    }
+  };
+
+  const handleDeleteEssay = async (id: string) => {
+    const success = await deleteSubmission(id);
+    if (success) {
+      toast.success("Essay deleted");
+      if (viewingHistoryId === id) {
+        handleReset();
+      }
+    } else {
+      toast.error("Failed to delete essay");
+    }
   };
 
   const getScoreColor = (score: number) => {
-    if (score >= 90) return "text-green-500";
+    if (score >= 90) return "text-primary";
     if (score >= 80) return "text-blue-500";
-    if (score >= 70) return "text-yellow-500";
-    return "text-orange-500";
+    if (score >= 70) return "text-amber-500";
+    return "text-destructive";
   };
+
+  const historyItems = submissions.map((s) => ({
+    id: s.id,
+    title: s.title || "Untitled Essay",
+    subtitle: s.topic || undefined,
+    date: s.created_at,
+    score: s.overall_score || undefined,
+  }));
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
@@ -144,7 +200,15 @@ Be encouraging and constructive. Provide age-appropriate feedback.`,
             Submit essays for AI grading and detailed feedback
           </p>
         </div>
-        <TopicSelector />
+        <div className="flex items-center gap-2">
+          <HistoryPanel
+            essaySubmissions={historyItems}
+            onSelectEssay={handleSelectEssay}
+            onDeleteEssay={handleDeleteEssay}
+            activeTab="essays"
+          />
+          <TopicSelector />
+        </div>
       </div>
 
       {!feedback ? (
@@ -203,9 +267,16 @@ Be encouraging and constructive. Provide age-appropriate feedback.`,
       ) : (
         /* Feedback Display */
         <div className="space-y-6">
+          {viewingHistoryId && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <History className="h-4 w-4" />
+              Viewing saved essay
+            </div>
+          )}
+
           {/* Overall Score */}
           <Card className="text-center p-8">
-            <div className={`text-6xl font-bold mb-2 ${getScoreColor(feedback.overallScore)}`}>
+            <div className={cn("text-6xl font-bold mb-2", getScoreColor(feedback.overallScore))}>
               {feedback.overallScore}
             </div>
             <p className="text-muted-foreground">Overall Score</p>
@@ -234,7 +305,7 @@ Be encouraging and constructive. Provide age-appropriate feedback.`,
           <div className="grid md:grid-cols-2 gap-6">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-green-600">
+                <CardTitle className="flex items-center gap-2 text-primary">
                   <CheckCircle className="h-5 w-5" />
                   Strengths
                 </CardTitle>
@@ -243,7 +314,7 @@ Be encouraging and constructive. Provide age-appropriate feedback.`,
                 <ul className="space-y-2">
                   {feedback.strengths.map((s, idx) => (
                     <li key={idx} className="flex items-start gap-2">
-                      <span className="text-green-500 mt-1">•</span>
+                      <span className="text-primary mt-1">•</span>
                       <span>{s}</span>
                     </li>
                   ))}
@@ -253,7 +324,7 @@ Be encouraging and constructive. Provide age-appropriate feedback.`,
 
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-orange-600">
+                <CardTitle className="flex items-center gap-2 text-destructive">
                   <AlertCircle className="h-5 w-5" />
                   Areas to Improve
                 </CardTitle>
@@ -262,7 +333,7 @@ Be encouraging and constructive. Provide age-appropriate feedback.`,
                 <ul className="space-y-2">
                   {feedback.improvements.map((i, idx) => (
                     <li key={idx} className="flex items-start gap-2">
-                      <span className="text-orange-500 mt-1">•</span>
+                      <span className="text-destructive mt-1">•</span>
                       <span>{i}</span>
                     </li>
                   ))}

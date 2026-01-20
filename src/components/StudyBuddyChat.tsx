@@ -1,11 +1,15 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useUser } from "@/contexts/UserContext";
 import { useChat } from "@/hooks/useChat";
+import { useChatHistory } from "@/hooks/useChatHistory";
+import { useLiveVoice } from "@/hooks/useLiveVoice";
 import { Header } from "./Header";
 import { ChatContainer } from "./ChatContainer";
 import { ChatInput } from "./ChatInput";
+import { HistoryPanel } from "./HistoryPanel";
+import { LiveVoiceButton } from "./LiveVoiceButton";
 import { toast } from "sonner";
-import { useEffect } from "react";
+import { useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Users, Shield, LogIn } from "lucide-react";
@@ -23,7 +27,55 @@ export function StudyBuddyChat() {
   }, [profile?.grade_level, role, setGradeLevel]);
 
   const effectiveGradeLevel = profile?.grade_level || gradeLevel;
-  const { messages, isLoading, error, sendMessage, clearMessages } = useChat(effectiveGradeLevel);
+  const { messages, isLoading, error, sendMessage, clearMessages, setMessages } = useChat(effectiveGradeLevel);
+
+  const {
+    sessions,
+    saveSession,
+    loadSession,
+    deleteSession,
+    startNewSession,
+  } = useChatHistory();
+
+  // Live voice mode
+  const handleLiveUserSpeech = useCallback(
+    (text: string) => {
+      sendMessage(text);
+    },
+    [sendMessage]
+  );
+
+  const {
+    isLiveMode,
+    isListening,
+    isSpeaking,
+    isProcessing,
+    toggleLiveMode,
+    speakResponse,
+  } = useLiveVoice({
+    onUserSpeech: handleLiveUserSpeech,
+    gradeLevel: effectiveGradeLevel,
+  });
+
+  // Speak AI responses in live mode
+  useEffect(() => {
+    if (isLiveMode && messages.length > 0) {
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage.role === "assistant" && !isLoading) {
+        speakResponse(lastMessage.content);
+      }
+    }
+  }, [messages, isLiveMode, isLoading, speakResponse]);
+
+  // Auto-save chat session
+  useEffect(() => {
+    if (user && messages.length > 0 && !isLoading) {
+      const timeoutId = setTimeout(() => {
+        saveSession(messages);
+      }, 2000);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [messages, user, isLoading, saveSession]);
 
   useEffect(() => {
     if (error) {
@@ -39,11 +91,38 @@ export function StudyBuddyChat() {
     sendMessage(message, imageData);
   };
 
+  const handleNewChat = () => {
+    clearMessages();
+    startNewSession();
+  };
+
+  const handleSelectChat = (sessionId: string) => {
+    const loadedMessages = loadSession(sessionId);
+    if (loadedMessages && setMessages) {
+      setMessages(loadedMessages);
+      toast.success("Chat loaded");
+    }
+  };
+
+  const handleDeleteChat = async (sessionId: string) => {
+    const success = await deleteSession(sessionId);
+    if (success) {
+      toast.success("Chat deleted");
+    }
+  };
+
+  const historyItems = sessions.map((s) => ({
+    id: s.id,
+    title: s.topic || s.messages[0]?.content.slice(0, 30) + "..." || "Chat",
+    subtitle: `${s.messages.length} messages`,
+    date: s.updated_at,
+  }));
+
   // Show login prompt for non-authenticated users
   if (!authLoading && !user) {
     return (
       <div className="flex flex-col h-screen max-h-screen bg-background">
-        <Header onNewChat={clearMessages} hasMessages={false} />
+        <Header onNewChat={handleNewChat} hasMessages={false} />
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="text-center max-w-md">
             <h2 className="text-2xl font-bold mb-4">Welcome to StudyBuddy! 👋</h2>
@@ -69,7 +148,7 @@ export function StudyBuddyChat() {
   if (role === "parent" || role === "admin") {
     return (
       <div className="flex flex-col h-screen max-h-screen bg-background">
-        <Header onNewChat={clearMessages} hasMessages={messages.length > 0} />
+        <Header onNewChat={handleNewChat} hasMessages={messages.length > 0} />
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="text-center max-w-md space-y-6">
             <h2 className="text-2xl font-bold">
@@ -105,12 +184,30 @@ export function StudyBuddyChat() {
 
   return (
     <div className="flex flex-col h-screen max-h-screen bg-background">
-      <Header onNewChat={clearMessages} hasMessages={messages.length > 0} />
+      <div className="flex items-center justify-between border-b px-4">
+        <Header onNewChat={handleNewChat} hasMessages={messages.length > 0} />
+        <div className="flex items-center gap-2 py-2">
+          <LiveVoiceButton
+            isLive={isLiveMode}
+            isListening={isListening}
+            isSpeaking={isSpeaking}
+            isProcessing={isProcessing}
+            onToggle={toggleLiveMode}
+            disabled={effectiveGradeLevel === 0}
+          />
+          <HistoryPanel
+            chatSessions={historyItems}
+            onSelectChat={handleSelectChat}
+            onDeleteChat={handleDeleteChat}
+            activeTab="chats"
+          />
+        </div>
+      </div>
       <ChatContainer messages={messages} isLoading={isLoading} userName={profile?.display_name || ""} />
       <ChatInput
         onSend={handleSend}
         isLoading={isLoading}
-        disabled={effectiveGradeLevel === 0}
+        disabled={effectiveGradeLevel === 0 || isLiveMode}
       />
     </div>
   );

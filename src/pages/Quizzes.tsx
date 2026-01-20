@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ClipboardList, CheckCircle, XCircle, Sparkles, Loader2, Trophy, Volume2, VolumeX } from "lucide-react";
+import { ClipboardList, CheckCircle, XCircle, Sparkles, Loader2, Trophy, Volume2, VolumeX, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -13,6 +13,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useSpeech } from "@/hooks/useSpeech";
+import { useQuizHistory } from "@/hooks/useQuizHistory";
+import { HistoryPanel } from "@/components/HistoryPanel";
 
 interface Question {
   id: string;
@@ -28,16 +30,24 @@ interface QuizState {
   answers: Record<string, number>;
   isSubmitted: boolean;
   score: number;
+  sessionId?: string;
 }
 
 export default function Quizzes() {
   const { currentTopic } = useTopic();
   const { gradeLevel } = useUser();
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
   const [quiz, setQuiz] = useState<QuizState | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const { speak, stop, isSpeaking } = useSpeech();
+
+  const {
+    sessions,
+    saveSession,
+    loadSession,
+    deleteSession,
+  } = useQuizHistory();
 
   const effectiveGradeLevel = profile?.grade_level || gradeLevel;
 
@@ -68,7 +78,7 @@ export default function Quizzes() {
           correctAnswer: q.correctAnswer,
           explanation: q.explanation,
         }));
-        
+
         setQuiz({
           questions: formattedQuestions,
           currentIndex: 0,
@@ -94,7 +104,7 @@ export default function Quizzes() {
     setSelectedAnswer(answerIndex);
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (!quiz || selectedAnswer === null) return;
 
     const newAnswers = {
@@ -116,12 +126,25 @@ export default function Quizzes() {
         if (newAnswers[q.id] === q.correctAnswer) score++;
       });
 
+      const scorePercent = Math.round((score / quiz.questions.length) * 100);
+
       setQuiz({
         ...quiz,
         answers: newAnswers,
         isSubmitted: true,
         score,
       });
+
+      // Save to database
+      if (user && currentTopic) {
+        await saveSession(
+          currentTopic.name,
+          quiz.questions,
+          newAnswers,
+          scorePercent,
+          true
+        );
+      }
 
       // Track activity
       const activity = JSON.parse(localStorage.getItem("studybuddy_activity") || "{}");
@@ -133,7 +156,7 @@ export default function Quizzes() {
   const handleSpeakQuestion = () => {
     const currentQuestion = quiz?.questions[quiz.currentIndex];
     if (!currentQuestion) return;
-    
+
     if (isSpeaking) {
       stop();
     } else {
@@ -142,8 +165,41 @@ export default function Quizzes() {
     }
   };
 
+  const handleSelectSession = (sessionId: string) => {
+    const session = loadSession(sessionId);
+    if (session) {
+      setQuiz({
+        questions: session.questions,
+        currentIndex: session.is_completed ? 0 : Object.keys(session.answers).length,
+        answers: session.answers,
+        isSubmitted: session.is_completed,
+        score: session.score ? Math.round((session.score / 100) * session.questions.length) : 0,
+        sessionId: session.id,
+      });
+      setSelectedAnswer(null);
+      toast.success(`Loaded "${session.topic}" quiz`);
+    }
+  };
+
+  const handleDeleteSession = async (sessionId: string) => {
+    const success = await deleteSession(sessionId);
+    if (success) {
+      toast.success("Quiz deleted");
+    } else {
+      toast.error("Failed to delete quiz");
+    }
+  };
+
   const currentQuestion = quiz?.questions[quiz.currentIndex];
   const progress = quiz ? ((quiz.currentIndex + 1) / quiz.questions.length) * 100 : 0;
+
+  const historyItems = sessions.map((s) => ({
+    id: s.id,
+    title: s.topic,
+    subtitle: s.is_completed ? "Completed" : "In Progress",
+    date: s.updated_at,
+    score: s.score || undefined,
+  }));
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
@@ -158,7 +214,15 @@ export default function Quizzes() {
             Test your knowledge with AI-generated quizzes
           </p>
         </div>
-        <TopicSelector />
+        <div className="flex items-center gap-2">
+          <HistoryPanel
+            quizSessions={historyItems}
+            onSelectQuiz={handleSelectSession}
+            onDeleteQuiz={handleDeleteSession}
+            activeTab="quizzes"
+          />
+          <TopicSelector />
+        </div>
       </div>
 
       {/* Generate Button */}
@@ -210,7 +274,7 @@ export default function Quizzes() {
           </CardHeader>
           <CardContent className="space-y-6">
             <h3 className="text-xl font-medium">{currentQuestion.question}</h3>
-            
+
             <RadioGroup
               value={selectedAnswer?.toString()}
               onValueChange={(val) => handleAnswer(parseInt(val))}
@@ -250,7 +314,7 @@ export default function Quizzes() {
           <Card className="text-center p-8">
             <Trophy className={cn(
               "h-16 w-16 mx-auto mb-4",
-              quiz.score >= quiz.questions.length * 0.8 ? "text-yellow-500" : "text-muted-foreground"
+              quiz.score >= quiz.questions.length * 0.8 ? "text-primary" : "text-muted-foreground"
             )} />
             <h2 className="text-2xl font-bold mb-2">Quiz Complete!</h2>
             <p className="text-4xl font-bold text-primary mb-2">
@@ -276,31 +340,31 @@ export default function Quizzes() {
             {quiz.questions.map((q) => {
               const userAnswer = quiz.answers[q.id];
               const isCorrect = userAnswer === q.correctAnswer;
-              
+
               return (
                 <Card key={q.id} className={cn(
                   "border-l-4",
-                  isCorrect ? "border-l-green-500" : "border-l-red-500"
+                  isCorrect ? "border-l-primary" : "border-l-destructive"
                 )}>
                   <CardContent className="p-4">
                     <div className="flex items-start gap-3">
                       {isCorrect ? (
-                        <CheckCircle className="h-5 w-5 text-green-500 shrink-0 mt-0.5" />
+                        <CheckCircle className="h-5 w-5 text-primary shrink-0 mt-0.5" />
                       ) : (
-                        <XCircle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+                        <XCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
                       )}
                       <div className="space-y-2">
                         <p className="font-medium">{q.question}</p>
                         <p className="text-sm">
                           <span className="text-muted-foreground">Your answer: </span>
-                          <span className={isCorrect ? "text-green-600" : "text-red-600"}>
+                          <span className={isCorrect ? "text-primary" : "text-destructive"}>
                             {q.options[userAnswer]}
                           </span>
                         </p>
                         {!isCorrect && (
                           <p className="text-sm">
                             <span className="text-muted-foreground">Correct answer: </span>
-                            <span className="text-green-600">{q.options[q.correctAnswer]}</span>
+                            <span className="text-primary">{q.options[q.correctAnswer]}</span>
                           </p>
                         )}
                         <p className="text-sm text-muted-foreground">{q.explanation}</p>
@@ -322,6 +386,11 @@ export default function Quizzes() {
           <p className="text-muted-foreground mb-4">
             Select a topic and generate an AI-powered quiz to test your knowledge.
           </p>
+          {sessions.length > 0 && (
+            <p className="text-sm text-muted-foreground">
+              Or click the <History className="h-4 w-4 inline" /> button to review past quizzes.
+            </p>
+          )}
         </Card>
       )}
     </div>

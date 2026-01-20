@@ -3,6 +3,7 @@ import { useState, useCallback, useRef } from "react";
 interface UseVoiceInputOptions {
   onTranscript?: (transcript: string) => void;
   onError?: (error: string) => void;
+  continuous?: boolean;
 }
 
 export function useVoiceInput(options: UseVoiceInputOptions = {}) {
@@ -23,7 +24,7 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
 
     recognitionRef.current = recognition;
 
-    recognition.continuous = false;
+    recognition.continuous = options.continuous ?? false;
     recognition.interimResults = true;
     recognition.lang = "en-US";
 
@@ -32,7 +33,7 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
       setTranscript("");
     };
 
-    recognition.onresult = (event) => {
+    recognition.onresult = (event: any) => {
       let interimTranscript = "";
       let finalTranscript = "";
 
@@ -53,7 +54,7 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
       }
     };
 
-    recognition.onerror = (event) => {
+    recognition.onerror = (event: any) => {
       console.error("Speech recognition error:", event.error);
       setIsListening(false);
       
@@ -67,15 +68,25 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
     };
 
     recognition.onend = () => {
-      setIsListening(false);
+      // Restart if continuous mode
+      if (options.continuous && isListening && recognitionRef.current) {
+        try {
+          recognitionRef.current.start();
+        } catch {
+          setIsListening(false);
+        }
+      } else {
+        setIsListening(false);
+      }
     };
 
     recognition.start();
-  }, [options]);
+  }, [options, isListening]);
 
   const stopListening = useCallback(() => {
     if (recognitionRef.current) {
       recognitionRef.current.stop();
+      recognitionRef.current = null;
       setIsListening(false);
     }
   }, []);
