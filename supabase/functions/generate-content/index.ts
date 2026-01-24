@@ -6,13 +6,14 @@ const corsHeaders = {
 };
 
 interface RequestBody {
-  type: "flashcards" | "quiz" | "summary";
+  type: "flashcards" | "quiz" | "summary" | "diagram";
   topic?: string;
   gradeLevel?: number;
   count?: number;
   difficulty?: "easy" | "medium" | "hard";
   content?: string;
   isBase64?: boolean;
+  diagramType?: "flowchart" | "mindmap";
 }
 
 serve(async (req) => {
@@ -22,7 +23,7 @@ serve(async (req) => {
 
   try {
     const body: RequestBody = await req.json();
-    const { type, topic, gradeLevel = 5, count = 5, difficulty = "medium", content, isBase64 } = body;
+    const { type, topic, gradeLevel = 5, count = 5, difficulty = "medium", content, isBase64, diagramType = "flowchart" } = body;
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
     if (!LOVABLE_API_KEY) {
@@ -53,6 +54,93 @@ serve(async (req) => {
     let tools: any[] | undefined;
     let toolChoice: any | undefined;
     let messages: any[];
+
+    if (type === "diagram") {
+      const diagramInstructions = diagramType === "flowchart"
+        ? `Create a Mermaid flowchart diagram. Use 'graph TD' or 'graph LR' syntax. Use simple node IDs (A, B, C, etc.) with descriptive labels. Connect nodes with arrows (-->). Example:
+graph TD
+    A[Start] --> B[Process Step]
+    B --> C{Decision?}
+    C -->|Yes| D[Action A]
+    C -->|No| E[Action B]
+    D --> F[End]
+    E --> F`
+        : `Create a Mermaid mindmap diagram. Use 'mindmap' syntax with proper indentation. The root should be the main topic, with branches for subtopics. Example:
+mindmap
+  root((Main Topic))
+    Branch 1
+      Sub-item 1
+      Sub-item 2
+    Branch 2
+      Sub-item 3
+    Branch 3`;
+
+      const systemPrompt = `You are an expert at creating clear, educational diagrams using Mermaid syntax. Create diagrams that are easy to understand and visually represent the key concepts and relationships in the content.
+
+IMPORTANT RULES:
+1. Return ONLY valid Mermaid code, no markdown code blocks
+2. Use simple, short node labels
+3. Ensure all connections are valid
+4. For flowcharts, use graph TD (top-down) or graph LR (left-right)
+5. For mindmaps, use proper indentation with spaces
+6. Keep the diagram focused on main concepts (5-10 nodes maximum)`;
+
+      const userPrompt = `${diagramInstructions}
+
+Based on the following content, create a ${diagramType} diagram that visualizes the main concepts and relationships:
+
+${content}
+
+Remember: Return ONLY the Mermaid code, no explanations or markdown.`;
+
+      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-3-flash-preview",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt }
+          ],
+        }),
+      });
+
+      if (!response.ok) {
+        if (response.status === 429) {
+          return new Response(
+            JSON.stringify({ error: "Too many requests. Please try again in a moment!" }),
+            { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        if (response.status === 402) {
+          return new Response(
+            JSON.stringify({ error: "Service temporarily unavailable. Please try again later." }),
+            { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        const errorText = await response.text();
+        console.error("AI gateway error:", response.status, errorText);
+        throw new Error("Failed to generate diagram");
+      }
+
+      const data = await response.json();
+      let mermaidCode = data.choices?.[0]?.message?.content || "";
+
+      // Clean up the response - remove markdown code blocks if present
+      mermaidCode = mermaidCode.replace(/```mermaid\n?/g, "").replace(/```\n?/g, "").trim();
+
+      if (!mermaidCode) {
+        throw new Error("No diagram generated");
+      }
+
+      return new Response(
+        JSON.stringify({ mermaidCode }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     if (type === "summary") {
       systemPrompt = "You are an expert at summarizing educational content. Create clear, concise summaries that capture the key points and main ideas. Format your summary with clear sections and bullet points where appropriate.";
