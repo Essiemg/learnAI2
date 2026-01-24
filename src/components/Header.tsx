@@ -33,7 +33,7 @@ export function Header({ onNewChat, hasMessages }: HeaderProps) {
         </div>
         <div className="flex flex-col">
           <span className="font-bold text-lg leading-tight">StudyBuddy</span>
-          <span className="text-xs text-muted-foreground leading-tight">Your AI Tutor</span>
+          <span className="text-xs text-muted-foreground leading-tight">Your Learning Companion</span>
         </div>
       </Link>
 

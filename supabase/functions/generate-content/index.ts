@@ -10,6 +10,7 @@ interface RequestBody {
   topic: string;
   gradeLevel: number;
   count?: number;
+  difficulty?: "easy" | "medium" | "hard";
 }
 
 serve(async (req) => {
@@ -18,12 +19,18 @@ serve(async (req) => {
   }
 
   try {
-    const { type, topic, gradeLevel, count = 5 }: RequestBody = await req.json();
+    const { type, topic, gradeLevel, count = 5, difficulty = "medium" }: RequestBody = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
+
+    const difficultyDescriptions: Record<string, string> = {
+      easy: "simple and straightforward, focusing on basic concepts",
+      medium: "moderately challenging, requiring some critical thinking",
+      hard: "challenging, requiring deeper understanding and analysis",
+    };
 
     const gradeDescriptions: Record<number, string> = {
       1: "1st grade (age 6-7)",
@@ -44,9 +51,9 @@ serve(async (req) => {
     let toolChoice: any;
 
     if (type === "flashcards") {
-      systemPrompt = `You are an educational content creator specializing in creating flashcards for children. Create age-appropriate, engaging flashcards for ${gradeContext} students.`;
+      systemPrompt = `You are an educational content creator specializing in creating ${difficultyDescriptions[difficulty]} flashcards for children. Create age-appropriate, engaging flashcards for ${gradeContext} students.`;
       
-      userPrompt = `Create ${count} educational flashcards about "${topic}" for ${gradeContext} students. Make them engaging and appropriate for the age level.`;
+      userPrompt = `Create ${count} ${difficulty} educational flashcards about "${topic}" for ${gradeContext} students. Make them engaging and appropriate for the age level.`;
       
       tools = [
         {
@@ -84,9 +91,9 @@ serve(async (req) => {
       ];
       toolChoice = { type: "function", function: { name: "create_flashcards" } };
     } else {
-      systemPrompt = `You are an educational content creator specializing in creating quizzes for children. Create age-appropriate, engaging multiple choice quizzes for ${gradeContext} students.`;
+      systemPrompt = `You are an educational content creator specializing in creating ${difficultyDescriptions[difficulty]} quizzes for children. Create age-appropriate, engaging multiple choice quizzes for ${gradeContext} students.`;
       
-      userPrompt = `Create a ${count}-question multiple choice quiz about "${topic}" for ${gradeContext} students. Make the questions engaging and educational. Each question should have exactly 4 options with only one correct answer.`;
+      userPrompt = `Create a ${count}-question ${difficulty} multiple choice quiz about "${topic}" for ${gradeContext} students. Make the questions engaging and educational. Each question should have exactly 4 options with only one correct answer.`;
       
       tools = [
         {
