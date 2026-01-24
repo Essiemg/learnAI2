@@ -15,6 +15,7 @@ import Flashcards from "./pages/Flashcards";
 import Quizzes from "./pages/Quizzes";
 import Essays from "./pages/Essays";
 import Calendar from "./pages/Calendar";
+import Summarize from "./pages/Summarize";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Profile from "./pages/Profile";
@@ -46,6 +47,7 @@ const App = () => (
                         <Route path="/flashcards" element={<Flashcards />} />
                         <Route path="/quizzes" element={<Quizzes />} />
                         <Route path="/essays" element={<Essays />} />
+                        <Route path="/summarize" element={<Summarize />} />
                         <Route path="/calendar" element={<Calendar />} />
                         <Route path="/profile" element={<Profile />} />
                         <Route path="/parent" element={<ParentDashboard />} />
