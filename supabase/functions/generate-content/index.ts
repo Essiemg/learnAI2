@@ -6,11 +6,13 @@ const corsHeaders = {
 };
 
 interface RequestBody {
-  type: "flashcards" | "quiz";
-  topic: string;
-  gradeLevel: number;
+  type: "flashcards" | "quiz" | "summary";
+  topic?: string;
+  gradeLevel?: number;
   count?: number;
   difficulty?: "easy" | "medium" | "hard";
+  content?: string;
+  isBase64?: boolean;
 }
 
 serve(async (req) => {
@@ -19,7 +21,8 @@ serve(async (req) => {
   }
 
   try {
-    const { type, topic, gradeLevel, count = 5, difficulty = "medium" }: RequestBody = await req.json();
+    const body: RequestBody = await req.json();
+    const { type, topic, gradeLevel = 5, count = 5, difficulty = "medium", content, isBase64 } = body;
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
     if (!LOVABLE_API_KEY) {
@@ -47,9 +50,78 @@ serve(async (req) => {
 
     let systemPrompt: string;
     let userPrompt: string;
-    let tools: any[];
-    let toolChoice: any;
+    let tools: any[] | undefined;
+    let toolChoice: any | undefined;
+    let messages: any[];
 
+    if (type === "summary") {
+      systemPrompt = "You are an expert at summarizing educational content. Create clear, concise summaries that capture the key points and main ideas. Format your summary with clear sections and bullet points where appropriate.";
+      
+      if (isBase64 && content) {
+        // Handle multimodal content (images/documents)
+        messages = [
+          { role: "system", content: systemPrompt },
+          { 
+            role: "user", 
+            content: [
+              { type: "text", text: "Please summarize the content in this document/image. Provide a comprehensive summary with key points, main ideas, and important details. Use clear headings and bullet points." },
+              { type: "image_url", image_url: { url: content } }
+            ]
+          }
+        ];
+      } else {
+        userPrompt = `Please summarize the following content. Provide a comprehensive summary with key points, main ideas, and important details. Use clear headings and bullet points where appropriate.\n\nContent to summarize:\n${content}`;
+        messages = [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
+        ];
+      }
+
+      // For summaries, we don't use tool calling - just get the text response
+      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-3-flash-preview",
+          messages,
+        }),
+      });
+
+      if (!response.ok) {
+        if (response.status === 429) {
+          return new Response(
+            JSON.stringify({ error: "Too many requests. Please try again in a moment!" }),
+            { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        if (response.status === 402) {
+          return new Response(
+            JSON.stringify({ error: "Service temporarily unavailable. Please try again later." }),
+            { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        const errorText = await response.text();
+        console.error("AI gateway error:", response.status, errorText);
+        throw new Error("Failed to generate summary");
+      }
+
+      const data = await response.json();
+      const summary = data.choices?.[0]?.message?.content;
+
+      if (!summary) {
+        throw new Error("No summary generated");
+      }
+
+      return new Response(
+        JSON.stringify({ summary }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Flashcards and Quiz generation
     if (type === "flashcards") {
       systemPrompt = `You are an educational content creator specializing in creating ${difficultyDescriptions[difficulty]} flashcards for children. Create age-appropriate, engaging flashcards for ${gradeContext} students.`;
       
@@ -90,7 +162,7 @@ serve(async (req) => {
         }
       ];
       toolChoice = { type: "function", function: { name: "create_flashcards" } };
-    } else {
+    } else if (type === "quiz") {
       systemPrompt = `You are an educational content creator specializing in creating ${difficultyDescriptions[difficulty]} quizzes for children. Create age-appropriate, engaging multiple choice quizzes for ${gradeContext} students.`;
       
       userPrompt = `Create a ${count}-question ${difficulty} multiple choice quiz about "${topic}" for ${gradeContext} students. Make the questions engaging and educational. Each question should have exactly 4 options with only one correct answer.`;
@@ -139,7 +211,14 @@ serve(async (req) => {
         }
       ];
       toolChoice = { type: "function", function: { name: "create_quiz" } };
+    } else {
+      throw new Error("Invalid content type");
     }
+
+    messages = [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt! }
+    ];
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -149,10 +228,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt }
-        ],
+        messages,
         tools,
         tool_choice: toolChoice,
       }),
@@ -184,10 +260,10 @@ serve(async (req) => {
       throw new Error("No content generated");
     }
 
-    const content = JSON.parse(toolCall.function.arguments);
+    const generatedContent = JSON.parse(toolCall.function.arguments);
 
     return new Response(
-      JSON.stringify(content),
+      JSON.stringify(generatedContent),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (e) {
