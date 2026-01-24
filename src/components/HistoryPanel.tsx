@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { History, Trash2, MessageSquare, Layers, ClipboardList, FileText, ChevronRight } from "lucide-react";
+import { History, Trash2, MessageSquare, Layers, ClipboardList, FileText, ChevronRight, Phone, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -20,18 +20,23 @@ interface HistoryItem {
   subtitle?: string;
   date: string;
   score?: number;
+  duration?: string;
 }
 
 interface HistoryPanelProps {
   chatSessions?: HistoryItem[];
+  voiceSessions?: HistoryItem[];
   flashcardSessions?: HistoryItem[];
   quizSessions?: HistoryItem[];
   essaySubmissions?: HistoryItem[];
   onSelectChat?: (id: string) => void;
+  onSelectVoice?: (id: string) => void;
+  onPlayVoiceRecap?: (id: string) => void;
   onSelectFlashcard?: (id: string) => void;
   onSelectQuiz?: (id: string) => void;
   onSelectEssay?: (id: string) => void;
   onDeleteChat?: (id: string) => void;
+  onDeleteVoice?: (id: string) => void;
   onDeleteFlashcard?: (id: string) => void;
   onDeleteQuiz?: (id: string) => void;
   onDeleteEssay?: (id: string) => void;
@@ -43,11 +48,13 @@ function HistoryItemCard({
   icon: Icon,
   onSelect,
   onDelete,
+  onPlayRecap,
 }: {
   item: HistoryItem;
   icon: React.ElementType;
   onSelect?: () => void;
   onDelete?: () => void;
+  onPlayRecap?: () => void;
 }) {
   return (
     <div
@@ -66,6 +73,7 @@ function HistoryItemCard({
           <p className="text-xs text-muted-foreground truncate">{item.subtitle}</p>
         )}
         <p className="text-xs text-muted-foreground mt-1">
+          {item.duration && <span className="mr-2">{item.duration}</span>}
           {formatDistanceToNow(new Date(item.date), { addSuffix: true })}
         </p>
       </div>
@@ -78,6 +86,20 @@ function HistoryItemCard({
         >
           {item.score}%
         </div>
+      )}
+      {onPlayRecap && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          onClick={(e) => {
+            e.stopPropagation();
+            onPlayRecap();
+          }}
+          title="Play audio recap"
+        >
+          <Volume2 className="h-4 w-4 text-primary" />
+        </Button>
       )}
       <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
       {onDelete && (
@@ -108,14 +130,18 @@ function EmptyState({ message }: { message: string }) {
 
 export function HistoryPanel({
   chatSessions = [],
+  voiceSessions = [],
   flashcardSessions = [],
   quizSessions = [],
   essaySubmissions = [],
   onSelectChat,
+  onSelectVoice,
+  onPlayVoiceRecap,
   onSelectFlashcard,
   onSelectQuiz,
   onSelectEssay,
   onDeleteChat,
+  onDeleteVoice,
   onDeleteFlashcard,
   onDeleteQuiz,
   onDeleteEssay,
@@ -146,17 +172,20 @@ export function HistoryPanel({
         </SheetHeader>
 
         <Tabs defaultValue={activeTab} className="mt-6">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="chats" className="text-xs">
+          <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="chats" className="text-xs" title="Text Chats">
               <MessageSquare className="h-4 w-4" />
             </TabsTrigger>
-            <TabsTrigger value="flashcards" className="text-xs">
+            <TabsTrigger value="voice" className="text-xs" title="Voice Calls">
+              <Phone className="h-4 w-4" />
+            </TabsTrigger>
+            <TabsTrigger value="flashcards" className="text-xs" title="Flashcards">
               <Layers className="h-4 w-4" />
             </TabsTrigger>
-            <TabsTrigger value="quizzes" className="text-xs">
+            <TabsTrigger value="quizzes" className="text-xs" title="Quizzes">
               <ClipboardList className="h-4 w-4" />
             </TabsTrigger>
-            <TabsTrigger value="essays" className="text-xs">
+            <TabsTrigger value="essays" className="text-xs" title="Essays">
               <FileText className="h-4 w-4" />
             </TabsTrigger>
           </TabsList>
@@ -174,6 +203,27 @@ export function HistoryPanel({
                       icon={MessageSquare}
                       onSelect={() => handleSelect(onSelectChat, item.id)}
                       onDelete={onDeleteChat ? () => onDeleteChat(item.id) : undefined}
+                    />
+                  ))
+                )}
+              </div>
+            </ScrollArea>
+          </TabsContent>
+
+          <TabsContent value="voice" className="mt-4">
+            <ScrollArea className="h-[calc(100vh-220px)]">
+              <div className="space-y-2 pr-4">
+                {voiceSessions.length === 0 ? (
+                  <EmptyState message="No voice conversations yet" />
+                ) : (
+                  voiceSessions.map((item) => (
+                    <HistoryItemCard
+                      key={item.id}
+                      item={item}
+                      icon={Phone}
+                      onSelect={() => handleSelect(onSelectVoice, item.id)}
+                      onDelete={onDeleteVoice ? () => onDeleteVoice(item.id) : undefined}
+                      onPlayRecap={onPlayVoiceRecap ? () => onPlayVoiceRecap(item.id) : undefined}
                     />
                   ))
                 )}

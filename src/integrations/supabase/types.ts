@@ -265,6 +265,36 @@ export type Database = {
         }
         Relationships: []
       }
+      voice_sessions: {
+        Row: {
+          created_at: string
+          duration_seconds: number | null
+          id: string
+          messages: Json
+          topic: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          duration_seconds?: number | null
+          id?: string
+          messages?: Json
+          topic?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          duration_seconds?: number | null
+          id?: string
+          messages?: Json
+          topic?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

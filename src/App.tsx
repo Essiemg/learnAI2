@@ -14,8 +14,9 @@ import AITutor from "./pages/AITutor";
 import Flashcards from "./pages/Flashcards";
 import Quizzes from "./pages/Quizzes";
 import Essays from "./pages/Essays";
-import Calendar from "./pages/Calendar";
 import Summarize from "./pages/Summarize";
+import Diagrams from "./pages/Diagrams";
+import Calendar from "./pages/Calendar";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Profile from "./pages/Profile";
@@ -48,6 +49,7 @@ const App = () => (
                         <Route path="/quizzes" element={<Quizzes />} />
                         <Route path="/essays" element={<Essays />} />
                         <Route path="/summarize" element={<Summarize />} />
+                        <Route path="/diagrams" element={<Diagrams />} />
                         <Route path="/calendar" element={<Calendar />} />
                         <Route path="/profile" element={<Profile />} />
                         <Route path="/parent" element={<ParentDashboard />} />

@@ -1,4 +1,4 @@
-import { Home, LayoutDashboard, Bot, Layers, ClipboardList, FileText, CalendarDays, User, LogIn, Settings, Shield, Users, ScrollText } from "lucide-react";
+import { Home, LayoutDashboard, Bot, Layers, ClipboardList, FileText, CalendarDays, User, LogIn, Settings, Shield, Users, ScrollText, GitBranch } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -28,6 +28,7 @@ const mainNavItems = [
   { title: "Quizzes", url: "/quizzes", icon: ClipboardList },
   { title: "Essays", url: "/essays", icon: FileText },
   { title: "Summarize", url: "/summarize", icon: ScrollText },
+  { title: "Diagrams", url: "/diagrams", icon: GitBranch },
   { title: "Calendar", url: "/calendar", icon: CalendarDays },
 ];
 
