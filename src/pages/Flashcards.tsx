@@ -1,8 +1,11 @@
 import { useState, useEffect } from "react";
-import { Layers, Shuffle, ChevronLeft, ChevronRight, RotateCcw, Sparkles, Loader2, Volume2, VolumeX, History } from "lucide-react";
+import { Layers, Shuffle, ChevronLeft, ChevronRight, RotateCcw, Loader2, Volume2, VolumeX, History, Upload, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { TopicSelector } from "@/components/TopicSelector";
+import { FileUpload } from "@/components/FileUpload";
 import { useTopic } from "@/contexts/TopicContext";
 import { useUser } from "@/contexts/UserContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -12,6 +15,7 @@ import { toast } from "sonner";
 import { useSpeech } from "@/hooks/useSpeech";
 import { useFlashcardHistory } from "@/hooks/useFlashcardHistory";
 import { HistoryPanel } from "@/components/HistoryPanel";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface Flashcard {
   id: string;
@@ -19,16 +23,32 @@ interface Flashcard {
   back: string;
 }
 
+interface UploadedFile {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  path?: string;
+  extractedText?: string;
+  base64?: string;
+}
+
 export default function Flashcards() {
   const { currentTopic } = useTopic();
   const { gradeLevel } = useUser();
-  const { user, profile, role } = useAuth();
+  const { user, profile } = useAuth();
   const [cards, setCards] = useState<Flashcard[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentSessionTopic, setCurrentSessionTopic] = useState<string | null>(null);
   const { speak, stop, isSpeaking } = useSpeech();
+  
+  // New state for customization
+  const [count, setCount] = useState<string>("5");
+  const [difficulty, setDifficulty] = useState<string>("medium");
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  const [showUpload, setShowUpload] = useState(false);
 
   const {
     sessions,
@@ -50,21 +70,45 @@ export default function Flashcards() {
   }, [cards, currentIndex, currentSessionTopic, user, saveSession]);
 
   const generateFlashcards = async () => {
-    if (!currentTopic) {
-      toast.error("Please select a topic first");
+    // Either need a topic or uploaded files
+    if (!currentTopic && uploadedFiles.length === 0) {
+      toast.error("Please select a topic or upload study material");
       return;
     }
 
     setIsGenerating(true);
     try {
-      const { data, error } = await supabase.functions.invoke("generate-content", {
-        body: {
-          type: "flashcards",
-          topic: currentTopic.name,
-          gradeLevel: effectiveGradeLevel,
-          count: 5,
-        },
-      });
+      let data, error;
+
+      if (uploadedFiles.length > 0) {
+        // Use file-based generation
+        const result = await supabase.functions.invoke("process-file", {
+          body: {
+            type: "flashcards",
+            fileData: uploadedFiles[0].base64,
+            fileType: uploadedFiles[0].type,
+            topic: currentTopic?.name,
+            gradeLevel: effectiveGradeLevel,
+            count: parseInt(count),
+            difficulty,
+          },
+        });
+        data = result.data;
+        error = result.error;
+      } else {
+        // Use topic-based generation
+        const result = await supabase.functions.invoke("generate-content", {
+          body: {
+            type: "flashcards",
+            topic: currentTopic?.name,
+            gradeLevel: effectiveGradeLevel,
+            count: parseInt(count),
+            difficulty,
+          },
+        });
+        data = result.data;
+        error = result.error;
+      }
 
       if (error) throw error;
 
@@ -77,14 +121,14 @@ export default function Flashcards() {
         setCards(formattedCards);
         setCurrentIndex(0);
         setIsFlipped(false);
-        setCurrentSessionTopic(currentTopic.name);
+        setCurrentSessionTopic(currentTopic?.name || uploadedFiles[0]?.name || "Study Material");
 
         // Track activity
         const activity = JSON.parse(localStorage.getItem("studybuddy_activity") || "{}");
         activity.flashcardsStudied = (activity.flashcardsStudied || 0) + formattedCards.length;
         localStorage.setItem("studybuddy_activity", JSON.stringify(activity));
 
-        toast.success(`Generated ${formattedCards.length} flashcards!`);
+        toast.success(`Generated ${formattedCards.length} ${difficulty} flashcards!`);
       } else {
         throw new Error("No flashcards generated");
       }
@@ -149,6 +193,7 @@ export default function Flashcards() {
     setCurrentIndex(0);
     setIsFlipped(false);
     setCurrentSessionTopic(null);
+    setUploadedFiles([]);
   };
 
   const currentCard = cards[currentIndex];
@@ -160,6 +205,8 @@ export default function Flashcards() {
     date: s.updated_at,
   }));
 
+  const canGenerate = currentTopic || uploadedFiles.length > 0;
+
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
       {/* Header */}
@@ -170,7 +217,7 @@ export default function Flashcards() {
             Flashcards
           </h1>
           <p className="text-muted-foreground">
-            AI-generated flashcards to help you study
+            Generate flashcards from topics or uploaded materials
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -184,12 +231,66 @@ export default function Flashcards() {
         </div>
       </div>
 
+      {/* Settings & Upload Section */}
+      <Card className="p-4 space-y-4">
+        {/* Options Row */}
+        <div className="flex flex-wrap gap-4 items-end">
+          <div className="space-y-2">
+            <Label htmlFor="count">Number of Cards</Label>
+            <Select value={count} onValueChange={setCount}>
+              <SelectTrigger className="w-[120px]" id="count">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="3">3 cards</SelectItem>
+                <SelectItem value="5">5 cards</SelectItem>
+                <SelectItem value="10">10 cards</SelectItem>
+                <SelectItem value="15">15 cards</SelectItem>
+                <SelectItem value="20">20 cards</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="difficulty">Difficulty</Label>
+            <Select value={difficulty} onValueChange={setDifficulty}>
+              <SelectTrigger className="w-[120px]" id="difficulty">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="easy">Easy</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="hard">Hard</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => setShowUpload(!showUpload)}
+            className="gap-2"
+          >
+            <Upload className="h-4 w-4" />
+            {showUpload ? "Hide Upload" : "Upload Material"}
+          </Button>
+        </div>
+
+        {/* File Upload */}
+        <Collapsible open={showUpload}>
+          <CollapsibleContent className="pt-4 border-t">
+            <FileUpload
+              files={uploadedFiles}
+              onFilesChange={setUploadedFiles}
+              maxFiles={1}
+            />
+          </CollapsibleContent>
+        </Collapsible>
+      </Card>
+
       {/* Generate Button */}
       <div className="flex justify-center gap-2">
         <Button
           size="lg"
           onClick={generateFlashcards}
-          disabled={isGenerating || !currentTopic}
+          disabled={isGenerating || !canGenerate}
           className="gap-2"
         >
           {isGenerating ? (
@@ -199,9 +300,8 @@ export default function Flashcards() {
             </>
           ) : (
             <>
-              <Sparkles className="h-5 w-5" />
-              Generate Flashcards
-              {currentTopic && ` for ${currentTopic.name}`}
+              <Layers className="h-5 w-5" />
+              Generate {count} {difficulty} Flashcards
             </>
           )}
         </Button>
@@ -296,7 +396,7 @@ export default function Flashcards() {
           <Layers className="h-16 w-16 mx-auto text-muted-foreground/50 mb-4" />
           <h3 className="text-lg font-medium mb-2">No Flashcards Yet</h3>
           <p className="text-muted-foreground mb-4">
-            Select a topic and generate AI-powered flashcards to start studying.
+            Select a topic or upload study material, then choose your settings and generate flashcards.
           </p>
           {sessions.length > 0 && (
             <p className="text-sm text-muted-foreground">

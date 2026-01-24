@@ -83,12 +83,14 @@ export function StudyBuddyChat() {
     }
   }, [error]);
 
-  const handleSend = (message: string, imageData?: string) => {
+  const handleSend = (message: string, imageData?: string, files?: { id: string; name: string; type: string; base64: string }[]) => {
     if (effectiveGradeLevel === 0 && role === "child") {
-      toast.info("Please select your grade level first! 🎓");
+      toast.info("Please select your grade level first!");
       return;
     }
-    sendMessage(message, imageData);
+    // For now, use imageData if provided, or the first image from files
+    const image = imageData || files?.find(f => f.type.startsWith("image/"))?.base64;
+    sendMessage(message, image);
   };
 
   const handleNewChat = () => {
@@ -125,9 +127,9 @@ export function StudyBuddyChat() {
         <Header onNewChat={handleNewChat} hasMessages={false} />
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="text-center max-w-md">
-            <h2 className="text-2xl font-bold mb-4">Welcome to StudyBuddy! 👋</h2>
+            <h2 className="text-2xl font-bold mb-4">Welcome to StudyBuddy!</h2>
             <p className="text-muted-foreground mb-6">
-              Sign in to start learning with your personal AI tutor.
+              Sign in to start learning with your personal tutor.
             </p>
             <div className="flex flex-col gap-3">
               <Button size="lg" onClick={() => navigate("/login")}>
@@ -152,7 +154,7 @@ export function StudyBuddyChat() {
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="text-center max-w-md space-y-6">
             <h2 className="text-2xl font-bold">
-              Welcome, {profile?.display_name}! 🎉
+              Welcome, {profile?.display_name}!
             </h2>
             <p className="text-muted-foreground">
               {role === "admin"

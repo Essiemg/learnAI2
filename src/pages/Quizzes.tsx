@@ -1,11 +1,13 @@
 import { useState } from "react";
-import { ClipboardList, CheckCircle, XCircle, Sparkles, Loader2, Trophy, Volume2, VolumeX, History } from "lucide-react";
+import { ClipboardList, CheckCircle, XCircle, Loader2, Trophy, Volume2, VolumeX, History, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TopicSelector } from "@/components/TopicSelector";
+import { FileUpload } from "@/components/FileUpload";
 import { useTopic } from "@/contexts/TopicContext";
 import { useUser } from "@/contexts/UserContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -15,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { useSpeech } from "@/hooks/useSpeech";
 import { useQuizHistory } from "@/hooks/useQuizHistory";
 import { HistoryPanel } from "@/components/HistoryPanel";
+import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 
 interface Question {
   id: string;
@@ -33,6 +36,16 @@ interface QuizState {
   sessionId?: string;
 }
 
+interface UploadedFile {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  path?: string;
+  extractedText?: string;
+  base64?: string;
+}
+
 export default function Quizzes() {
   const { currentTopic } = useTopic();
   const { gradeLevel } = useUser();
@@ -41,6 +54,12 @@ export default function Quizzes() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const { speak, stop, isSpeaking } = useSpeech();
+
+  // New customization state
+  const [count, setCount] = useState<string>("5");
+  const [difficulty, setDifficulty] = useState<string>("medium");
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  const [showUpload, setShowUpload] = useState(false);
 
   const {
     sessions,
@@ -52,21 +71,44 @@ export default function Quizzes() {
   const effectiveGradeLevel = profile?.grade_level || gradeLevel;
 
   const generateQuiz = async () => {
-    if (!currentTopic) {
-      toast.error("Please select a topic first");
+    if (!currentTopic && uploadedFiles.length === 0) {
+      toast.error("Please select a topic or upload study material");
       return;
     }
 
     setIsGenerating(true);
     try {
-      const { data, error } = await supabase.functions.invoke("generate-content", {
-        body: {
-          type: "quiz",
-          topic: currentTopic.name,
-          gradeLevel: effectiveGradeLevel,
-          count: 5,
-        },
-      });
+      let data, error;
+
+      if (uploadedFiles.length > 0) {
+        // Use file-based generation
+        const result = await supabase.functions.invoke("process-file", {
+          body: {
+            type: "quiz",
+            fileData: uploadedFiles[0].base64,
+            fileType: uploadedFiles[0].type,
+            topic: currentTopic?.name,
+            gradeLevel: effectiveGradeLevel,
+            count: parseInt(count),
+            difficulty,
+          },
+        });
+        data = result.data;
+        error = result.error;
+      } else {
+        // Use topic-based generation
+        const result = await supabase.functions.invoke("generate-content", {
+          body: {
+            type: "quiz",
+            topic: currentTopic?.name,
+            gradeLevel: effectiveGradeLevel,
+            count: parseInt(count),
+            difficulty,
+          },
+        });
+        data = result.data;
+        error = result.error;
+      }
 
       if (error) throw error;
 
@@ -87,7 +129,7 @@ export default function Quizzes() {
           score: 0,
         });
         setSelectedAnswer(null);
-        toast.success("Quiz generated!");
+        toast.success(`Generated ${formattedQuestions.length} ${difficulty} questions!`);
       } else {
         throw new Error("No questions generated");
       }
@@ -136,9 +178,9 @@ export default function Quizzes() {
       });
 
       // Save to database
-      if (user && currentTopic) {
+      if (user && (currentTopic || uploadedFiles.length > 0)) {
         await saveSession(
-          currentTopic.name,
+          currentTopic?.name || uploadedFiles[0]?.name || "Quiz",
           quiz.questions,
           newAnswers,
           scorePercent,
@@ -190,6 +232,12 @@ export default function Quizzes() {
     }
   };
 
+  const handleReset = () => {
+    setQuiz(null);
+    setUploadedFiles([]);
+    setSelectedAnswer(null);
+  };
+
   const currentQuestion = quiz?.questions[quiz.currentIndex];
   const progress = quiz ? ((quiz.currentIndex + 1) / quiz.questions.length) * 100 : 0;
 
@@ -201,6 +249,8 @@ export default function Quizzes() {
     score: s.score || undefined,
   }));
 
+  const canGenerate = currentTopic || uploadedFiles.length > 0;
+
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
       {/* Header */}
@@ -211,7 +261,7 @@ export default function Quizzes() {
             Quizzes
           </h1>
           <p className="text-muted-foreground">
-            Test your knowledge with AI-generated quizzes
+            Test your knowledge with customized quizzes
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -225,13 +275,69 @@ export default function Quizzes() {
         </div>
       </div>
 
+      {/* Settings & Upload Section */}
+      {!quiz && (
+        <Card className="p-4 space-y-4">
+          {/* Options Row */}
+          <div className="flex flex-wrap gap-4 items-end">
+            <div className="space-y-2">
+              <Label htmlFor="count">Number of Questions</Label>
+              <Select value={count} onValueChange={setCount}>
+                <SelectTrigger className="w-[140px]" id="count">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="3">3 questions</SelectItem>
+                  <SelectItem value="5">5 questions</SelectItem>
+                  <SelectItem value="10">10 questions</SelectItem>
+                  <SelectItem value="15">15 questions</SelectItem>
+                  <SelectItem value="20">20 questions</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="difficulty">Difficulty</Label>
+              <Select value={difficulty} onValueChange={setDifficulty}>
+                <SelectTrigger className="w-[120px]" id="difficulty">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="easy">Easy</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="hard">Hard</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => setShowUpload(!showUpload)}
+              className="gap-2"
+            >
+              <Upload className="h-4 w-4" />
+              {showUpload ? "Hide Upload" : "Upload Material"}
+            </Button>
+          </div>
+
+          {/* File Upload */}
+          <Collapsible open={showUpload}>
+            <CollapsibleContent className="pt-4 border-t">
+              <FileUpload
+                files={uploadedFiles}
+                onFilesChange={setUploadedFiles}
+                maxFiles={1}
+              />
+            </CollapsibleContent>
+          </Collapsible>
+        </Card>
+      )}
+
       {/* Generate Button */}
       {!quiz && (
         <div className="flex justify-center">
           <Button
             size="lg"
             onClick={generateQuiz}
-            disabled={isGenerating || !currentTopic}
+            disabled={isGenerating || !canGenerate}
             className="gap-2"
           >
             {isGenerating ? (
@@ -241,9 +347,8 @@ export default function Quizzes() {
               </>
             ) : (
               <>
-                <Sparkles className="h-5 w-5" />
-                Generate Quiz
-                {currentTopic && ` on ${currentTopic.name}`}
+                <ClipboardList className="h-5 w-5" />
+                Generate {count} {difficulty} Questions
               </>
             )}
           </Button>
@@ -322,14 +427,14 @@ export default function Quizzes() {
             </p>
             <p className="text-muted-foreground">
               {quiz.score === quiz.questions.length
-                ? "Perfect score! 🎉"
+                ? "Perfect score!"
                 : quiz.score >= quiz.questions.length * 0.8
-                ? "Great job! 👏"
+                ? "Great job!"
                 : quiz.score >= quiz.questions.length * 0.6
                 ? "Good effort! Keep practicing."
                 : "Keep studying, you'll improve!"}
             </p>
-            <Button onClick={() => setQuiz(null)} className="mt-6">
+            <Button onClick={handleReset} className="mt-6">
               Try Another Quiz
             </Button>
           </Card>
@@ -384,7 +489,7 @@ export default function Quizzes() {
           <ClipboardList className="h-16 w-16 mx-auto text-muted-foreground/50 mb-4" />
           <h3 className="text-lg font-medium mb-2">No Quiz Yet</h3>
           <p className="text-muted-foreground mb-4">
-            Select a topic and generate an AI-powered quiz to test your knowledge.
+            Select a topic or upload study material, choose your settings, and generate a quiz.
           </p>
           {sessions.length > 0 && (
             <p className="text-sm text-muted-foreground">

@@ -1,21 +1,28 @@
 import { useState, useRef, useEffect, KeyboardEvent } from "react";
-import { Send, ImagePlus, X, Loader2, Mic, MicOff } from "lucide-react";
+import { Send, Paperclip, X, Loader2, Mic, MicOff, FileText, Image } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { useVoiceInput } from "@/hooks/useVoiceInput";
 import { toast } from "sonner";
 
+interface UploadedFile {
+  id: string;
+  name: string;
+  type: string;
+  base64: string;
+}
+
 interface ChatInputProps {
-  onSend: (message: string, imageData?: string) => void;
+  onSend: (message: string, imageData?: string, files?: UploadedFile[]) => void;
   isLoading: boolean;
   disabled?: boolean;
 }
 
 export function ChatInput({ onSend, isLoading, disabled }: ChatInputProps) {
   const [message, setMessage] = useState("");
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [isProcessingImage, setIsProcessingImage] = useState(false);
+  const [files, setFiles] = useState<UploadedFile[]>([]);
+  const [isProcessingFile, setIsProcessingFile] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -35,53 +42,71 @@ export function ChatInput({ onSend, isLoading, disabled }: ChatInputProps) {
     }
   }, [isListening, transcript]);
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = e.target.files;
+    if (!fileList) return;
 
-    // Validate file type
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please upload an image file");
+    if (files.length >= 5) {
+      toast.error("Maximum 5 files allowed");
       return;
     }
 
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("Image must be smaller than 5MB");
-      return;
-    }
-
-    setIsProcessingImage(true);
+    setIsProcessingFile(true);
 
     try {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = reader.result as string;
-        setImagePreview(base64);
-        setIsProcessingImage(false);
-      };
-      reader.readAsDataURL(file);
-    } catch (error) {
-      console.error("Error processing image:", error);
-      setIsProcessingImage(false);
-    }
+      const processedFiles: UploadedFile[] = [];
 
-    // Reset the file input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
+      for (const file of Array.from(fileList)) {
+        // Validate file size (max 10MB)
+        if (file.size > 10 * 1024 * 1024) {
+          toast.error(`${file.name} is too large. Maximum size is 10MB.`);
+          continue;
+        }
+
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+
+        processedFiles.push({
+          id: crypto.randomUUID(),
+          name: file.name,
+          type: file.type,
+          base64,
+        });
+      }
+
+      setFiles((prev) => [...prev, ...processedFiles].slice(0, 5));
+    } catch (error) {
+      console.error("Error processing file:", error);
+      toast.error("Failed to process file");
+    } finally {
+      setIsProcessingFile(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     }
   };
 
-  const handleRemoveImage = () => {
-    setImagePreview(null);
+  const handleRemoveFile = (id: string) => {
+    setFiles((prev) => prev.filter((f) => f.id !== id));
   };
 
   const handleSend = () => {
-    if ((!message.trim() && !imagePreview) || isLoading || disabled) return;
+    if ((!message.trim() && files.length === 0) || isLoading || disabled) return;
 
-    onSend(message, imagePreview || undefined);
+    // If there's only one image file, send it as imageData for backward compatibility
+    const imageFiles = files.filter((f) => f.type.startsWith("image/"));
+    if (imageFiles.length === 1 && files.length === 1) {
+      onSend(message, imageFiles[0].base64);
+    } else {
+      onSend(message, undefined, files.length > 0 ? files : undefined);
+    }
+
     setMessage("");
-    setImagePreview(null);
+    setFiles([]);
     textareaRef.current?.focus();
   };
 
@@ -92,26 +117,52 @@ export function ChatInput({ onSend, isLoading, disabled }: ChatInputProps) {
     }
   };
 
-  const canSend = (message.trim() || imagePreview) && !isLoading && !disabled;
+  const canSend = (message.trim() || files.length > 0) && !isLoading && !disabled;
+
+  const getFileIcon = (type: string) => {
+    if (type.startsWith("image/")) return Image;
+    return FileText;
+  };
 
   return (
     <div className="border-t border-border bg-background p-4 safe-bottom">
-      {/* Image preview */}
-      {imagePreview && (
-        <div className="mb-3 relative inline-block">
-          <img
-            src={imagePreview}
-            alt="Homework to upload"
-            className="max-h-24 rounded-lg border border-border"
-          />
-          <Button
-            variant="destructive"
-            size="icon"
-            className="absolute -top-2 -right-2 h-6 w-6 rounded-full"
-            onClick={handleRemoveImage}
-          >
-            <X className="h-3 w-3" />
-          </Button>
+      {/* File previews */}
+      {files.length > 0 && (
+        <div className="mb-3 flex flex-wrap gap-2">
+          {files.map((file) => {
+            const Icon = getFileIcon(file.type);
+            const isImage = file.type.startsWith("image/");
+
+            return (
+              <div
+                key={file.id}
+                className="relative group bg-muted rounded-lg overflow-hidden"
+              >
+                {isImage ? (
+                  <img
+                    src={file.base64}
+                    alt={file.name}
+                    className="h-16 w-16 object-cover"
+                  />
+                ) : (
+                  <div className="h-16 w-16 flex flex-col items-center justify-center p-2">
+                    <Icon className="h-6 w-6 text-muted-foreground" />
+                    <span className="text-[10px] text-muted-foreground truncate max-w-full mt-1">
+                      {file.name.split(".").pop()?.toUpperCase()}
+                    </span>
+                  </div>
+                )}
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  className="absolute -top-1 -right-1 h-5 w-5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={() => handleRemoveFile(file.id)}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -124,27 +175,28 @@ export function ChatInput({ onSend, isLoading, disabled }: ChatInputProps) {
       )}
 
       <div className="flex items-end gap-2">
-        {/* Image upload button */}
+        {/* File upload button */}
         <div>
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept="image/*,.pdf,.txt,.doc,.docx"
+            multiple
             className="hidden"
-            onChange={handleImageUpload}
+            onChange={handleFileUpload}
           />
           <Button
             variant="ghost"
             size="icon"
             className="rounded-full"
             onClick={() => fileInputRef.current?.click()}
-            disabled={isLoading || isProcessingImage}
-            aria-label="Upload homework image"
+            disabled={isLoading || isProcessingFile || files.length >= 5}
+            aria-label="Upload file"
           >
-            {isProcessingImage ? (
+            {isProcessingFile ? (
               <Loader2 className="h-5 w-5 animate-spin" />
             ) : (
-              <ImagePlus className="h-5 w-5" />
+              <Paperclip className="h-5 w-5" />
             )}
           </Button>
         </div>
@@ -176,8 +228,8 @@ export function ChatInput({ onSend, isLoading, disabled }: ChatInputProps) {
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={
-              imagePreview
-                ? "Ask about this homework..."
+              files.length > 0
+                ? "Ask about these files..."
                 : isListening
                 ? "Listening..."
                 : "Ask me anything about your homework!"
@@ -208,7 +260,7 @@ export function ChatInput({ onSend, isLoading, disabled }: ChatInputProps) {
       </div>
 
       <p className="text-center text-xs text-muted-foreground mt-2">
-        StudyBuddy helps you learn — it won't just give you the answers! 💡
+        StudyBuddy helps you learn — it won't just give you the answers!
       </p>
     </div>
   );

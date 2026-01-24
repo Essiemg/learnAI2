@@ -47,7 +47,7 @@ export default function Homepage() {
         <div className="relative max-w-4xl mx-auto text-center">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium mb-6">
             <Sparkles className="h-4 w-4" />
-            Powered by AI
+            Smart Learning
           </div>
           <h1 className="text-4xl md:text-6xl font-bold tracking-tight mb-6">
             Learn Smarter with{" "}
