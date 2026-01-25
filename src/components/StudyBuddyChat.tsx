@@ -2,7 +2,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useUser } from "@/contexts/UserContext";
 import { useChat } from "@/hooks/useChat";
 import { useChatHistory } from "@/hooks/useChatHistory";
-import { useLiveVoice } from "@/hooks/useLiveVoice";
+import { useGeminiLive } from "@/hooks/useGeminiLive";
 import { Header } from "./Header";
 import { ChatContainer } from "./ChatContainer";
 import { ChatInput } from "./ChatInput";
@@ -38,35 +38,36 @@ export function StudyBuddyChat() {
     startNewSession,
   } = useChatHistory();
 
-  // Live voice mode
-  const handleLiveUserSpeech = useCallback(
-    (text: string) => {
-      sendMessage(text);
+  // Gemini Live voice mode - handles both transcription and responses
+  const handleGeminiTranscript = useCallback(
+    (text: string, isUser: boolean) => {
+      // Add the transcript to the messages for display
+      if (isUser) {
+        // User spoke - we might want to show what they said
+        console.log("User said:", text);
+      } else {
+        // AI responded - show the text response
+        console.log("AI said:", text);
+      }
     },
-    [sendMessage]
+    []
   );
 
+  const handleGeminiError = useCallback((error: string) => {
+    toast.error(error);
+  }, []);
+
   const {
-    isLiveMode,
+    isConnected: isLiveMode,
     isListening,
     isSpeaking,
     isProcessing,
-    toggleLiveMode,
-    speakResponse,
-  } = useLiveVoice({
-    onUserSpeech: handleLiveUserSpeech,
+    toggle: toggleLiveMode,
+  } = useGeminiLive({
     gradeLevel: effectiveGradeLevel,
+    onTranscript: handleGeminiTranscript,
+    onError: handleGeminiError,
   });
-
-  // Speak AI responses in live mode
-  useEffect(() => {
-    if (isLiveMode && messages.length > 0) {
-      const lastMessage = messages[messages.length - 1];
-      if (lastMessage.role === "assistant" && !isLoading) {
-        speakResponse(lastMessage.content);
-      }
-    }
-  }, [messages, isLiveMode, isLoading, speakResponse]);
 
   // Auto-save chat session
   useEffect(() => {
