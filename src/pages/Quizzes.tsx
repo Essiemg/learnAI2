@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ClipboardList, CheckCircle, XCircle, Loader2, Trophy, Volume2, VolumeX, History, Upload } from "lucide-react";
+import { ClipboardList, CheckCircle, XCircle, Loader2, Trophy, Volume2, VolumeX, History, FolderOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TopicSelector } from "@/components/TopicSelector";
-import { FileUpload } from "@/components/FileUpload";
+import { MaterialSelector } from "@/components/MaterialSelector";
 import { useTopic } from "@/contexts/TopicContext";
 import { useUser } from "@/contexts/UserContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -36,14 +36,11 @@ interface QuizState {
   sessionId?: string;
 }
 
-interface UploadedFile {
+interface SelectedMaterial {
   id: string;
   name: string;
   type: string;
-  size: number;
-  path?: string;
-  extractedText?: string;
-  base64?: string;
+  base64: string;
 }
 
 export default function Quizzes() {
@@ -55,11 +52,10 @@ export default function Quizzes() {
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const { speak, stop, isSpeaking } = useSpeech();
 
-  // New customization state
   const [count, setCount] = useState<string>("5");
   const [difficulty, setDifficulty] = useState<string>("medium");
-  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
-  const [showUpload, setShowUpload] = useState(false);
+  const [selectedMaterials, setSelectedMaterials] = useState<SelectedMaterial[]>([]);
+  const [showMaterials, setShowMaterials] = useState(false);
 
   const {
     sessions,
@@ -71,8 +67,8 @@ export default function Quizzes() {
   const effectiveGradeLevel = profile?.grade_level || gradeLevel;
 
   const generateQuiz = async () => {
-    if (!currentTopic && uploadedFiles.length === 0) {
-      toast.error("Please select a topic or upload study material");
+    if (!currentTopic && selectedMaterials.length === 0) {
+      toast.error("Please select a topic or study material");
       return;
     }
 
@@ -80,13 +76,12 @@ export default function Quizzes() {
     try {
       let data, error;
 
-      if (uploadedFiles.length > 0) {
-        // Use file-based generation
+      if (selectedMaterials.length > 0) {
         const result = await supabase.functions.invoke("process-file", {
           body: {
             type: "quiz",
-            fileData: uploadedFiles[0].base64,
-            fileType: uploadedFiles[0].type,
+            fileData: selectedMaterials[0].base64,
+            fileType: selectedMaterials[0].type,
             topic: currentTopic?.name,
             gradeLevel: effectiveGradeLevel,
             count: parseInt(count),
@@ -96,7 +91,6 @@ export default function Quizzes() {
         data = result.data;
         error = result.error;
       } else {
-        // Use topic-based generation
         const result = await supabase.functions.invoke("generate-content", {
           body: {
             type: "quiz",
@@ -162,7 +156,6 @@ export default function Quizzes() {
       });
       setSelectedAnswer(null);
     } else {
-      // Calculate score
       let score = 0;
       quiz.questions.forEach((q) => {
         if (newAnswers[q.id] === q.correctAnswer) score++;
@@ -177,10 +170,9 @@ export default function Quizzes() {
         score,
       });
 
-      // Save to database
-      if (user && (currentTopic || uploadedFiles.length > 0)) {
+      if (user && (currentTopic || selectedMaterials.length > 0)) {
         await saveSession(
-          currentTopic?.name || uploadedFiles[0]?.name || "Quiz",
+          currentTopic?.name || selectedMaterials[0]?.name || "Quiz",
           quiz.questions,
           newAnswers,
           scorePercent,
@@ -188,7 +180,6 @@ export default function Quizzes() {
         );
       }
 
-      // Track activity
       const activity = JSON.parse(localStorage.getItem("studybuddy_activity") || "{}");
       activity.quizzesCompleted = (activity.quizzesCompleted || 0) + 1;
       localStorage.setItem("studybuddy_activity", JSON.stringify(activity));
@@ -234,7 +225,7 @@ export default function Quizzes() {
 
   const handleReset = () => {
     setQuiz(null);
-    setUploadedFiles([]);
+    setSelectedMaterials([]);
     setSelectedAnswer(null);
   };
 
@@ -249,11 +240,10 @@ export default function Quizzes() {
     score: s.score || undefined,
   }));
 
-  const canGenerate = currentTopic || uploadedFiles.length > 0;
+  const canGenerate = currentTopic || selectedMaterials.length > 0;
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
@@ -275,10 +265,8 @@ export default function Quizzes() {
         </div>
       </div>
 
-      {/* Settings & Upload Section */}
       {!quiz && (
         <Card className="p-4 space-y-4">
-          {/* Options Row */}
           <div className="flex flex-wrap gap-4 items-end">
             <div className="space-y-2">
               <Label htmlFor="count">Number of Questions</Label>
@@ -310,28 +298,26 @@ export default function Quizzes() {
             </div>
             <Button
               variant="outline"
-              onClick={() => setShowUpload(!showUpload)}
+              onClick={() => setShowMaterials(!showMaterials)}
               className="gap-2"
             >
-              <Upload className="h-4 w-4" />
-              {showUpload ? "Hide Upload" : "Upload Material"}
+              <FolderOpen className="h-4 w-4" />
+              {selectedMaterials.length > 0 ? selectedMaterials[0].name : "Select Material"}
             </Button>
           </div>
 
-          {/* File Upload */}
-          <Collapsible open={showUpload}>
+          <Collapsible open={showMaterials}>
             <CollapsibleContent className="pt-4 border-t">
-              <FileUpload
-                files={uploadedFiles}
-                onFilesChange={setUploadedFiles}
-                maxFiles={1}
+              <MaterialSelector
+                selectedIds={selectedMaterials.map((m) => m.id)}
+                onSelect={setSelectedMaterials}
+                maxSelection={1}
               />
             </CollapsibleContent>
           </Collapsible>
         </Card>
       )}
 
-      {/* Generate Button */}
       {!quiz && (
         <div className="flex justify-center">
           <Button
@@ -355,7 +341,6 @@ export default function Quizzes() {
         </div>
       )}
 
-      {/* Quiz Display */}
       {quiz && !quiz.isSubmitted && currentQuestion && (
         <Card>
           <CardHeader>
@@ -413,7 +398,6 @@ export default function Quizzes() {
         </Card>
       )}
 
-      {/* Results */}
       {quiz?.isSubmitted && (
         <div className="space-y-6">
           <Card className="text-center p-8">
@@ -439,7 +423,6 @@ export default function Quizzes() {
             </Button>
           </Card>
 
-          {/* Review Answers */}
           <div className="space-y-4">
             <h3 className="text-lg font-medium">Review Answers</h3>
             {quiz.questions.map((q) => {
@@ -483,13 +466,12 @@ export default function Quizzes() {
         </div>
       )}
 
-      {/* Empty State */}
       {!quiz && !isGenerating && (
         <Card className="p-12 text-center">
           <ClipboardList className="h-16 w-16 mx-auto text-muted-foreground/50 mb-4" />
           <h3 className="text-lg font-medium mb-2">No Quiz Yet</h3>
           <p className="text-muted-foreground mb-4">
-            Select a topic or upload study material, choose your settings, and generate a quiz.
+            Select a topic or study material, choose your settings, and generate a quiz.
           </p>
           {sessions.length > 0 && (
             <p className="text-sm text-muted-foreground">

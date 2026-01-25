@@ -1,19 +1,26 @@
 import { useState, useEffect } from "react";
-import { GitBranch, Loader2, Copy, Check, Sparkles, Download } from "lucide-react";
+import { GitBranch, Loader2, Copy, Check, Sparkles, Download, FolderOpen } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
-import { useUploadedMaterials } from "@/hooks/useUploadedMaterials";
+import { MaterialSelector } from "@/components/MaterialSelector";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
+import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import mermaid from "mermaid";
+
+interface SelectedMaterial {
+  id: string;
+  name: string;
+  type: string;
+  base64: string;
+}
 
 export default function Diagrams() {
   const { user } = useAuth();
-  const { materials } = useUploadedMaterials();
-  const [selectedMaterial, setSelectedMaterial] = useState<string | null>(null);
+  const [selectedMaterials, setSelectedMaterials] = useState<SelectedMaterial[]>([]);
+  const [showMaterials, setShowMaterials] = useState(false);
   const [customText, setCustomText] = useState("");
   const [mermaidCode, setMermaidCode] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
@@ -62,18 +69,8 @@ export default function Diagrams() {
 
     let contentToVisualize = "";
 
-    if (selectedMaterial) {
-      const material = materials.find((m) => m.id === selectedMaterial);
-      if (material?.extracted_text) {
-        contentToVisualize = material.extracted_text;
-      } else {
-        toast({
-          title: "No content",
-          description: "This material has no extracted text",
-          variant: "destructive",
-        });
-        return;
-      }
+    if (selectedMaterials.length > 0) {
+      contentToVisualize = selectedMaterials[0].base64;
     } else if (customText.trim()) {
       contentToVisualize = customText.trim();
     } else {
@@ -95,6 +92,7 @@ export default function Diagrams() {
           type: "diagram",
           diagramType,
           content: contentToVisualize,
+          isBase64: selectedMaterials.length > 0,
         },
       });
 
@@ -154,7 +152,6 @@ export default function Diagrams() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
-      {/* Header */}
       <div>
         <h1 className="text-3xl font-bold flex items-center gap-2">
           <GitBranch className="h-8 w-8 text-primary" />
@@ -166,7 +163,6 @@ export default function Diagrams() {
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
-        {/* Input Section */}
         <Card>
           <CardHeader>
             <CardTitle>Source Material</CardTitle>
@@ -175,7 +171,6 @@ export default function Diagrams() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Diagram Type */}
             <div>
               <label className="block text-sm font-medium mb-2">
                 Diagram Type
@@ -198,35 +193,32 @@ export default function Diagrams() {
               </div>
             </div>
 
-            {/* Existing Materials */}
-            {materials.length > 0 && (
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Select from your materials
-                </label>
-                <div className="space-y-2 max-h-40 overflow-y-auto">
-                  {materials.map((material) => (
-                    <button
-                      key={material.id}
-                      onClick={() => {
-                        setSelectedMaterial(material.id);
-                        setCustomText("");
-                      }}
-                      className={cn(
-                        "w-full p-2 rounded-lg border text-left text-sm transition-colors",
-                        selectedMaterial === material.id
-                          ? "border-primary bg-primary/10"
-                          : "hover:bg-muted"
-                      )}
-                    >
-                      {material.file_name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+            <div>
+              <Button
+                variant="outline"
+                onClick={() => setShowMaterials(!showMaterials)}
+                className="w-full justify-start gap-2"
+              >
+                <FolderOpen className="h-4 w-4" />
+                {selectedMaterials.length > 0 ? selectedMaterials[0].name : "Select from Study Sets"}
+              </Button>
 
-            {/* Custom Text */}
+              <Collapsible open={showMaterials}>
+                <CollapsibleContent className="pt-4">
+                  <MaterialSelector
+                    selectedIds={selectedMaterials.map((m) => m.id)}
+                    onSelect={(materials) => {
+                      setSelectedMaterials(materials);
+                      if (materials.length > 0) {
+                        setCustomText("");
+                      }
+                    }}
+                    maxSelection={1}
+                  />
+                </CollapsibleContent>
+              </Collapsible>
+            </div>
+
             <div>
               <label className="block text-sm font-medium mb-2">
                 Or enter text directly
@@ -236,7 +228,9 @@ export default function Diagrams() {
                 value={customText}
                 onChange={(e) => {
                   setCustomText(e.target.value);
-                  setSelectedMaterial(null);
+                  if (e.target.value) {
+                    setSelectedMaterials([]);
+                  }
                 }}
                 rows={6}
               />
@@ -262,7 +256,6 @@ export default function Diagrams() {
           </CardContent>
         </Card>
 
-        {/* Output Section */}
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
