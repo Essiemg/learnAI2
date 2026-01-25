@@ -211,6 +211,33 @@ export type Database = {
         }
         Relationships: []
       }
+      study_sets: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       uploaded_materials: {
         Row: {
           created_at: string
@@ -220,6 +247,7 @@ export type Database = {
           file_size: number | null
           file_type: string
           id: string
+          study_set_id: string | null
           user_id: string
         }
         Insert: {
@@ -230,6 +258,7 @@ export type Database = {
           file_size?: number | null
           file_type: string
           id?: string
+          study_set_id?: string | null
           user_id: string
         }
         Update: {
@@ -240,9 +269,18 @@ export type Database = {
           file_size?: number | null
           file_type?: string
           id?: string
+          study_set_id?: string | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "uploaded_materials_study_set_id_fkey"
+            columns: ["study_set_id"]
+            isOneToOne: false
+            referencedRelation: "study_sets"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {

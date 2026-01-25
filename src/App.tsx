@@ -22,6 +22,7 @@ import Signup from "./pages/Signup";
 import Profile from "./pages/Profile";
 import ParentDashboard from "./pages/ParentDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
+import StudySets from "./pages/StudySets";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -54,6 +55,7 @@ const App = () => (
                         <Route path="/profile" element={<Profile />} />
                         <Route path="/parent" element={<ParentDashboard />} />
                         <Route path="/admin" element={<AdminDashboard />} />
+                        <Route path="/study-sets" element={<StudySets />} />
                         <Route path="*" element={<NotFound />} />
                       </Routes>
                     </MainLayout>

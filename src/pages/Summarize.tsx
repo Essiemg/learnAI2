@@ -1,31 +1,29 @@
 import { useState } from "react";
-import { FileText, Upload, Loader2, Copy, Check, Sparkles } from "lucide-react";
+import { FileText, Loader2, Copy, Check, Sparkles, FolderOpen } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
-import { useUploadedMaterials } from "@/hooks/useUploadedMaterials";
+import { MaterialSelector } from "@/components/MaterialSelector";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
+import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
+
+interface SelectedMaterial {
+  id: string;
+  name: string;
+  type: string;
+  base64: string;
+}
 
 export default function Summarize() {
   const { user } = useAuth();
-  const { materials, isLoading: materialsLoading } = useUploadedMaterials();
-  const [selectedMaterial, setSelectedMaterial] = useState<string | null>(null);
+  const [selectedMaterials, setSelectedMaterials] = useState<SelectedMaterial[]>([]);
+  const [showMaterials, setShowMaterials] = useState(false);
   const [customText, setCustomText] = useState("");
   const [summary, setSummary] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploadedFile(file);
-    setSelectedMaterial(null);
-    setCustomText("");
-  };
 
   const generateSummary = async () => {
     if (!user) {
@@ -38,35 +36,17 @@ export default function Summarize() {
     }
 
     let contentToSummarize = "";
+    let isBase64 = false;
 
-    // Priority: uploaded file > selected material > custom text
-    if (uploadedFile) {
-      // Convert file to base64 for AI processing
-      const reader = new FileReader();
-      const base64Promise = new Promise<string>((resolve) => {
-        reader.onload = () => resolve(reader.result as string);
-        reader.readAsDataURL(uploadedFile);
-      });
-      const base64 = await base64Promise;
-      contentToSummarize = base64;
-    } else if (selectedMaterial) {
-      const material = materials.find((m) => m.id === selectedMaterial);
-      if (material?.extracted_text) {
-        contentToSummarize = material.extracted_text;
-      } else {
-        toast({
-          title: "No content",
-          description: "This material has no extracted text",
-          variant: "destructive",
-        });
-        return;
-      }
+    if (selectedMaterials.length > 0) {
+      contentToSummarize = selectedMaterials[0].base64;
+      isBase64 = true;
     } else if (customText.trim()) {
       contentToSummarize = customText.trim();
     } else {
       toast({
         title: "No content",
-        description: "Please upload a file, select a material, or enter text",
+        description: "Please select a material or enter text",
         variant: "destructive",
       });
       return;
@@ -80,7 +60,7 @@ export default function Summarize() {
         body: {
           type: "summary",
           content: contentToSummarize,
-          isBase64: !!uploadedFile,
+          isBase64,
         },
       });
 
@@ -118,7 +98,7 @@ export default function Summarize() {
             <FileText className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
             <h2 className="text-xl font-semibold mb-2">Sign in to Summarize</h2>
             <p className="text-muted-foreground">
-              Upload materials and get AI-powered summaries by signing in.
+              Select materials from your Study Sets and get AI-powered summaries by signing in.
             </p>
           </CardContent>
         </Card>
@@ -128,19 +108,17 @@ export default function Summarize() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
-      {/* Header */}
       <div>
         <h1 className="text-3xl font-bold flex items-center gap-2">
           <FileText className="h-8 w-8 text-primary" />
           Summarize Materials
         </h1>
         <p className="text-muted-foreground">
-          Upload any document or paste text to get an AI-generated summary
+          Select materials from your Study Sets or paste text to get an AI-generated summary
         </p>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
-        {/* Input Section */}
         <Card>
           <CardHeader>
             <CardTitle>Source Material</CardTitle>
@@ -149,62 +127,32 @@ export default function Summarize() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* File Upload */}
             <div>
-              <label className="block text-sm font-medium mb-2">
-                Upload a file
-              </label>
-              <div className="border-2 border-dashed rounded-lg p-4 text-center hover:bg-muted/50 transition-colors">
-                <input
-                  type="file"
-                  accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                  id="file-upload"
-                />
-                <label htmlFor="file-upload" className="cursor-pointer">
-                  <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                  {uploadedFile ? (
-                    <p className="text-sm font-medium">{uploadedFile.name}</p>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      Click to upload PDF, Word, or image files
-                    </p>
-                  )}
-                </label>
-              </div>
+              <Button
+                variant="outline"
+                onClick={() => setShowMaterials(!showMaterials)}
+                className="w-full justify-start gap-2"
+              >
+                <FolderOpen className="h-4 w-4" />
+                {selectedMaterials.length > 0 ? selectedMaterials[0].name : "Select from Study Sets"}
+              </Button>
+
+              <Collapsible open={showMaterials}>
+                <CollapsibleContent className="pt-4">
+                  <MaterialSelector
+                    selectedIds={selectedMaterials.map((m) => m.id)}
+                    onSelect={(materials) => {
+                      setSelectedMaterials(materials);
+                      if (materials.length > 0) {
+                        setCustomText("");
+                      }
+                    }}
+                    maxSelection={1}
+                  />
+                </CollapsibleContent>
+              </Collapsible>
             </div>
 
-            {/* Existing Materials */}
-            {materials.length > 0 && (
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Or select from your materials
-                </label>
-                <div className="space-y-2 max-h-40 overflow-y-auto">
-                  {materials.map((material) => (
-                    <button
-                      key={material.id}
-                      onClick={() => {
-                        setSelectedMaterial(material.id);
-                        setUploadedFile(null);
-                        setCustomText("");
-                      }}
-                      className={cn(
-                        "w-full p-2 rounded-lg border text-left text-sm transition-colors",
-                        selectedMaterial === material.id
-                          ? "border-primary bg-primary/10"
-                          : "hover:bg-muted"
-                      )}
-                    >
-                      {material.file_name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Custom Text */}
             <div>
               <label className="block text-sm font-medium mb-2">
                 Or paste text directly
@@ -214,8 +162,9 @@ export default function Summarize() {
                 value={customText}
                 onChange={(e) => {
                   setCustomText(e.target.value);
-                  setSelectedMaterial(null);
-                  setUploadedFile(null);
+                  if (e.target.value) {
+                    setSelectedMaterials([]);
+                  }
                 }}
                 rows={6}
               />
@@ -241,7 +190,6 @@ export default function Summarize() {
           </CardContent>
         </Card>
 
-        {/* Output Section */}
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
