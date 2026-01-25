@@ -37,54 +37,60 @@ export function GoalItem({
   return (
     <div
       className={cn(
-        "flex items-center gap-2 p-2 rounded-lg border bg-card transition-all",
+        "flex items-center gap-1 rounded-md border transition-all",
+        compact 
+          ? "p-1 bg-primary/10 border-primary/20 dark:bg-primary/20 dark:border-primary/30" 
+          : "p-2 bg-card",
         isDragging && "opacity-50 scale-95",
         goal.is_completed && "opacity-60",
-        compact ? "text-xs" : "text-sm"
+        compact ? "text-[10px]" : "text-sm"
       )}
       draggable={draggable}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      {draggable && (
-        <GripVertical className={cn("text-muted-foreground cursor-grab", compact ? "h-3 w-3" : "h-4 w-4")} />
+      {draggable && !compact && (
+        <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab" />
       )}
       
       <Checkbox
         checked={goal.is_completed}
         onCheckedChange={() => onToggle(goal.id)}
-        className={compact ? "h-3 w-3" : "h-4 w-4"}
+        className={compact ? "h-3 w-3 shrink-0" : "h-4 w-4"}
       />
       
       <span
         className={cn(
-          "flex-1 truncate",
-          goal.is_completed && "line-through text-muted-foreground"
+          "flex-1 truncate leading-tight",
+          goal.is_completed && "line-through text-muted-foreground",
+          compact && "text-foreground font-medium"
         )}
       >
         {goal.title}
       </span>
 
-      <div className="flex items-center gap-1">
-        {onUnschedule && goal.target_date && (
+      {!compact && (
+        <div className="flex items-center gap-1">
+          {onUnschedule && goal.target_date && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={() => onUnschedule(goal.id)}
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon"
-            className={compact ? "h-5 w-5" : "h-6 w-6"}
-            onClick={() => onUnschedule(goal.id)}
+            className="h-6 w-6 text-destructive hover:text-destructive"
+            onClick={() => onDelete(goal.id)}
           >
-            <X className={compact ? "h-2.5 w-2.5" : "h-3 w-3"} />
+            <Trash2 className="h-3 w-3" />
           </Button>
-        )}
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn("text-destructive hover:text-destructive", compact ? "h-5 w-5" : "h-6 w-6")}
-          onClick={() => onDelete(goal.id)}
-        >
-          <Trash2 className={compact ? "h-2.5 w-2.5" : "h-3 w-3"} />
-        </Button>
-      </div>
+        </div>
+      )}
     </div>
   );
 }
