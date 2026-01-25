@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FileText, Loader2, Copy, Check, Sparkles, FolderOpen } from "lucide-react";
+import { FileText, Loader2, Copy, Check, Sparkles, FolderOpen, History, Trash2, Eye } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -8,6 +8,9 @@ import { MaterialSelector } from "@/components/MaterialSelector";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
+import { useSummaryHistory } from "@/hooks/useSummaryHistory";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { format } from "date-fns";
 
 interface SelectedMaterial {
   id: string;
@@ -18,12 +21,15 @@ interface SelectedMaterial {
 
 export default function Summarize() {
   const { user } = useAuth();
+  const { summaries, saveSummary, deleteSummary, isLoading: historyLoading } = useSummaryHistory();
   const [selectedMaterials, setSelectedMaterials] = useState<SelectedMaterial[]>([]);
   const [showMaterials, setShowMaterials] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [customText, setCustomText] = useState("");
   const [summary, setSummary] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [currentTitle, setCurrentTitle] = useState("");
 
   const generateSummary = async () => {
     if (!user) {
@@ -37,12 +43,15 @@ export default function Summarize() {
 
     let contentToSummarize = "";
     let isBase64 = false;
+    let title = "";
 
     if (selectedMaterials.length > 0) {
       contentToSummarize = selectedMaterials[0].base64;
       isBase64 = true;
+      title = selectedMaterials[0].name;
     } else if (customText.trim()) {
       contentToSummarize = customText.trim();
+      title = customText.slice(0, 50) + (customText.length > 50 ? "..." : "");
     } else {
       toast({
         title: "No content",
@@ -54,6 +63,7 @@ export default function Summarize() {
 
     setIsGenerating(true);
     setSummary("");
+    setCurrentTitle(title);
 
     try {
       const { data, error } = await supabase.functions.invoke("generate-content", {
@@ -68,6 +78,14 @@ export default function Summarize() {
 
       if (data?.summary) {
         setSummary(data.summary);
+        // Auto-save summary
+        await saveSummary(
+          data.summary,
+          title,
+          isBase64 ? undefined : contentToSummarize,
+          selectedMaterials.length > 0 ? selectedMaterials[0].id : undefined
+        );
+        toast({ title: "Summary saved!" });
       } else {
         throw new Error("No summary generated");
       }
@@ -90,6 +108,24 @@ export default function Summarize() {
     toast({ title: "Copied to clipboard" });
   };
 
+  const loadSavedSummary = (savedSummary: typeof summaries[0]) => {
+    setSummary(savedSummary.summary);
+    setCurrentTitle(savedSummary.title || "Saved Summary");
+    if (savedSummary.source_text) {
+      setCustomText(savedSummary.source_text);
+    }
+    setShowHistory(false);
+    toast({ title: "Summary loaded" });
+  };
+
+  const handleDeleteSummary = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const success = await deleteSummary(id);
+    if (success) {
+      toast({ title: "Summary deleted" });
+    }
+  };
+
   if (!user) {
     return (
       <div className="p-6 max-w-4xl mx-auto">
@@ -108,15 +144,67 @@ export default function Summarize() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold flex items-center gap-2">
-          <FileText className="h-8 w-8 text-primary" />
-          Summarize Materials
-        </h1>
-        <p className="text-muted-foreground">
-          Select materials from your Study Sets or paste text to get an AI-generated summary
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold flex items-center gap-2">
+            <FileText className="h-8 w-8 text-primary" />
+            Summarize Materials
+          </h1>
+          <p className="text-muted-foreground">
+            Select materials from your Study Sets or paste text to get an AI-generated summary
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          onClick={() => setShowHistory(!showHistory)}
+          className="gap-2"
+        >
+          <History className="h-4 w-4" />
+          History ({summaries.length})
+        </Button>
       </div>
+
+      {showHistory && summaries.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Saved Summaries</CardTitle>
+            <CardDescription>Click to view a previous summary</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-64">
+              <div className="space-y-2">
+                {summaries.map((s) => (
+                  <div
+                    key={s.id}
+                    onClick={() => loadSavedSummary(s)}
+                    className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 cursor-pointer transition-colors"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{s.title || "Untitled Summary"}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {format(new Date(s.created_at), "MMM d, yyyy 'at' h:mm a")}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 ml-4">
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        onClick={(e) => handleDeleteSummary(s.id, e)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid lg:grid-cols-2 gap-6">
         <Card>
@@ -194,7 +282,7 @@ export default function Summarize() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Summary</CardTitle>
+                <CardTitle>{currentTitle || "Summary"}</CardTitle>
                 <CardDescription>
                   AI-generated summary of your content
                 </CardDescription>

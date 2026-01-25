@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { GitBranch, Loader2, Copy, Check, Sparkles, Download, FolderOpen } from "lucide-react";
+import { GitBranch, Loader2, Copy, Check, Sparkles, Download, FolderOpen, History, Trash2, Eye } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -8,6 +8,9 @@ import { MaterialSelector } from "@/components/MaterialSelector";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
+import { useDiagramHistory } from "@/hooks/useDiagramHistory";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { format } from "date-fns";
 import mermaid from "mermaid";
 
 interface SelectedMaterial {
@@ -19,14 +22,17 @@ interface SelectedMaterial {
 
 export default function Diagrams() {
   const { user } = useAuth();
+  const { diagrams, saveDiagram, deleteDiagram, isLoading: historyLoading } = useDiagramHistory();
   const [selectedMaterials, setSelectedMaterials] = useState<SelectedMaterial[]>([]);
   const [showMaterials, setShowMaterials] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [customText, setCustomText] = useState("");
   const [mermaidCode, setMermaidCode] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
   const [diagramType, setDiagramType] = useState<"flowchart" | "mindmap">("flowchart");
   const [renderedSvg, setRenderedSvg] = useState("");
+  const [currentTitle, setCurrentTitle] = useState("");
 
   useEffect(() => {
     mermaid.initialize({
@@ -68,11 +74,14 @@ export default function Diagrams() {
     }
 
     let contentToVisualize = "";
+    let title = "";
 
     if (selectedMaterials.length > 0) {
       contentToVisualize = selectedMaterials[0].base64;
+      title = selectedMaterials[0].name;
     } else if (customText.trim()) {
       contentToVisualize = customText.trim();
+      title = customText.slice(0, 50) + (customText.length > 50 ? "..." : "");
     } else {
       toast({
         title: "No content",
@@ -85,6 +94,7 @@ export default function Diagrams() {
     setIsGenerating(true);
     setMermaidCode("");
     setRenderedSvg("");
+    setCurrentTitle(title);
 
     try {
       const { data, error } = await supabase.functions.invoke("generate-content", {
@@ -100,6 +110,15 @@ export default function Diagrams() {
 
       if (data?.mermaidCode) {
         setMermaidCode(data.mermaidCode);
+        // Auto-save diagram
+        await saveDiagram(
+          data.mermaidCode,
+          diagramType,
+          title,
+          selectedMaterials.length > 0 ? undefined : contentToVisualize,
+          selectedMaterials.length > 0 ? selectedMaterials[0].id : undefined
+        );
+        toast({ title: "Diagram saved!" });
       } else {
         throw new Error("No diagram generated");
       }
@@ -134,6 +153,25 @@ export default function Diagrams() {
     }
   };
 
+  const loadSavedDiagram = (savedDiagram: typeof diagrams[0]) => {
+    setMermaidCode(savedDiagram.mermaid_code);
+    setDiagramType(savedDiagram.diagram_type as "flowchart" | "mindmap");
+    setCurrentTitle(savedDiagram.title || "Saved Diagram");
+    if (savedDiagram.source_text) {
+      setCustomText(savedDiagram.source_text);
+    }
+    setShowHistory(false);
+    toast({ title: "Diagram loaded" });
+  };
+
+  const handleDeleteDiagram = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const success = await deleteDiagram(id);
+    if (success) {
+      toast({ title: "Diagram deleted" });
+    }
+  };
+
   if (!user) {
     return (
       <div className="p-6 max-w-4xl mx-auto">
@@ -152,15 +190,67 @@ export default function Diagrams() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold flex items-center gap-2">
-          <GitBranch className="h-8 w-8 text-primary" />
-          Diagram Generator
-        </h1>
-        <p className="text-muted-foreground">
-          Create flowcharts and mind maps from your study materials
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold flex items-center gap-2">
+            <GitBranch className="h-8 w-8 text-primary" />
+            Diagram Generator
+          </h1>
+          <p className="text-muted-foreground">
+            Create flowcharts and mind maps from your study materials
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          onClick={() => setShowHistory(!showHistory)}
+          className="gap-2"
+        >
+          <History className="h-4 w-4" />
+          History ({diagrams.length})
+        </Button>
       </div>
+
+      {showHistory && diagrams.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Saved Diagrams</CardTitle>
+            <CardDescription>Click to view a previous diagram</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-64">
+              <div className="space-y-2">
+                {diagrams.map((d) => (
+                  <div
+                    key={d.id}
+                    onClick={() => loadSavedDiagram(d)}
+                    className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 cursor-pointer transition-colors"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{d.title || "Untitled Diagram"}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {d.diagram_type === "flowchart" ? "Flowchart" : "Mind Map"} • {format(new Date(d.created_at), "MMM d, yyyy 'at' h:mm a")}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 ml-4">
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        onClick={(e) => handleDeleteDiagram(d.id, e)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid lg:grid-cols-2 gap-6">
         <Card>
@@ -260,7 +350,7 @@ export default function Diagrams() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Generated Diagram</CardTitle>
+                <CardTitle>{currentTitle || "Generated Diagram"}</CardTitle>
                 <CardDescription>
                   Visual representation of your content
                 </CardDescription>
