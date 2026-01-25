@@ -13,7 +13,7 @@ interface ChatMessageProps {
 
 export function ChatMessage({ message, isLatest }: ChatMessageProps) {
   const { voiceEnabled } = useUser();
-  const { speak, isSpeaking, stop } = useSpeech();
+  const { speak, isSpeaking, isLoading, stop } = useSpeech();
   const isUser = message.role === "user";
   const hasSpokenRef = useRef(false);
 
@@ -91,10 +91,11 @@ export function ChatMessage({ message, isLatest }: ChatMessageProps) {
             size="sm"
             className="h-7 px-2 text-muted-foreground hover:text-foreground"
             onClick={handleSpeak}
+            disabled={isLoading}
           >
-            <Volume2 className={cn("h-4 w-4", isSpeaking && "text-primary")} />
+            <Volume2 className={cn("h-4 w-4", (isSpeaking || isLoading) && "text-primary", isLoading && "animate-pulse")} />
             <span className="ml-1 text-xs">
-              {isSpeaking ? "Stop" : "Listen"}
+              {isLoading ? "Loading..." : isSpeaking ? "Stop" : "Listen"}
             </span>
           </Button>
         )}
