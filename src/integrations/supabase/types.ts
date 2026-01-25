@@ -41,6 +41,50 @@ export type Database = {
         }
         Relationships: []
       }
+      diagrams: {
+        Row: {
+          created_at: string
+          diagram_type: string
+          id: string
+          material_id: string | null
+          mermaid_code: string
+          source_text: string | null
+          title: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          diagram_type?: string
+          id?: string
+          material_id?: string | null
+          mermaid_code: string
+          source_text?: string | null
+          title?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          diagram_type?: string
+          id?: string
+          material_id?: string | null
+          mermaid_code?: string
+          source_text?: string | null
+          title?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "diagrams_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "uploaded_materials"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       essay_submissions: {
         Row: {
           content: string
@@ -237,6 +281,47 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      summaries: {
+        Row: {
+          created_at: string
+          id: string
+          material_id: string | null
+          source_text: string | null
+          summary: string
+          title: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          material_id?: string | null
+          source_text?: string | null
+          summary: string
+          title?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          material_id?: string | null
+          source_text?: string | null
+          summary?: string
+          title?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "summaries_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "uploaded_materials"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       uploaded_materials: {
         Row: {
