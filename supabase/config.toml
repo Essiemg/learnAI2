@@ -1,1 +1,22 @@
 project_id = "pqrttihdccwmwkzmmzjj"
+
+[functions.tutor-chat]
+verify_jwt = false
+
+[functions.generate-content]
+verify_jwt = false
+
+[functions.process-file]
+verify_jwt = false
+
+[functions.elevenlabs-tts]
+verify_jwt = false
+
+[functions.elevenlabs-stt]
+verify_jwt = false
+
+[functions.seed-admin]
+verify_jwt = false
+
+[functions.gemini-live]
+verify_jwt = false
