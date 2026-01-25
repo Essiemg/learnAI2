@@ -103,7 +103,7 @@ Remember: Your goal is to help them LEARN how to think, not to do their homework
       // Send setup message
       const setupMessage = {
         setup: {
-          model: "models/gemini-2.5-flash-native-audio-preview",
+          model: "models/gemini-2.0-flash-exp",
           generationConfig: {
             responseModalities: ["AUDIO"],
             speechConfig: {
