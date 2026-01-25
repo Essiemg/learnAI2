@@ -11,9 +11,9 @@ interface ChatContainerProps {
 }
 
 const welcomeMessages = [
-  "Hi there! 👋 I'm StudyBuddy, your learning companion!",
+  "I'm your learning companion!",
   "Upload a picture of your homework or type your question.",
-  "Remember: I'm here to help you think, not to give you answers! 🧠",
+  "I'm here to help you think, not to give you answers.",
 ];
 
 const subjectSuggestions = [
@@ -49,7 +49,7 @@ export function ChatContainer({ messages, isLoading, userName }: ChatContainerPr
 
           {/* Welcome text */}
           <h2 className="text-2xl font-bold mb-2">
-            {userName ? `Hey ${userName}! 👋` : "Hey there! 👋"}
+            {userName ? `Welcome, ${userName}!` : "Welcome!"}
           </h2>
           <div className="space-y-1 text-muted-foreground max-w-md">
             {welcomeMessages.map((msg, i) => (
