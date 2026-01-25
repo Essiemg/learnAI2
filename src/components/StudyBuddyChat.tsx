@@ -21,12 +21,13 @@ export function StudyBuddyChat() {
 
   // Sync grade level from profile
   useEffect(() => {
-    if (profile?.grade_level && role === "child") {
+    if (profile?.grade_level) {
       setGradeLevel(profile.grade_level);
     }
-  }, [profile?.grade_level, role, setGradeLevel]);
+  }, [profile?.grade_level, setGradeLevel]);
 
-  const effectiveGradeLevel = profile?.grade_level || gradeLevel;
+  // Default to grade 5 if not set to prevent blocking input
+  const effectiveGradeLevel = profile?.grade_level || gradeLevel || 5;
   const { messages, isLoading, error, sendMessage, clearMessages, setMessages } = useChat(effectiveGradeLevel);
 
   const {
@@ -84,10 +85,6 @@ export function StudyBuddyChat() {
   }, [error]);
 
   const handleSend = (message: string, imageData?: string, files?: { id: string; name: string; type: string; base64: string }[]) => {
-    if (effectiveGradeLevel === 0 && role === "child") {
-      toast.info("Please select your grade level first!");
-      return;
-    }
     // For now, use imageData if provided, or the first image from files
     const image = imageData || files?.find(f => f.type.startsWith("image/"))?.base64;
     sendMessage(message, image);
@@ -209,7 +206,7 @@ export function StudyBuddyChat() {
       <ChatInput
         onSend={handleSend}
         isLoading={isLoading}
-        disabled={effectiveGradeLevel === 0 || isLiveMode}
+        disabled={isLiveMode}
       />
     </div>
   );
