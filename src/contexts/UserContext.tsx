@@ -15,33 +15,50 @@ const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export function UserProvider({ children }: { children: ReactNode }) {
   const [gradeLevel, setGradeLevel] = useState<number>(() => {
-    const stored = localStorage.getItem("studybuddy-grade");
+    // Migrate from old key if exists
+    const oldStored = localStorage.getItem("studybuddy-grade");
+    const stored = localStorage.getItem("toki-grade") || oldStored;
+    if (oldStored && !localStorage.getItem("toki-grade")) {
+      localStorage.setItem("toki-grade", oldStored);
+      localStorage.removeItem("studybuddy-grade");
+    }
     return stored ? parseInt(stored, 10) : 0;
   });
 
   const [userName, setUserName] = useState<string>(() => {
-    return localStorage.getItem("studybuddy-name") || "";
+    const oldStored = localStorage.getItem("studybuddy-name");
+    const stored = localStorage.getItem("toki-name") || oldStored;
+    if (oldStored && !localStorage.getItem("toki-name")) {
+      localStorage.setItem("toki-name", oldStored);
+      localStorage.removeItem("studybuddy-name");
+    }
+    return stored || "";
   });
 
   const [voiceEnabled, setVoiceEnabled] = useState<boolean>(() => {
-    return localStorage.getItem("studybuddy-voice") === "true";
+    const oldStored = localStorage.getItem("studybuddy-voice");
+    const stored = localStorage.getItem("toki-voice") || oldStored;
+    if (oldStored && !localStorage.getItem("toki-voice")) {
+      localStorage.setItem("toki-voice", oldStored);
+      localStorage.removeItem("studybuddy-voice");
+    }
+    return stored === "true";
   });
-
   const [userRole, setUserRole] = useState<"child" | "parent">("child");
 
   const handleSetGradeLevel = (grade: number) => {
     setGradeLevel(grade);
-    localStorage.setItem("studybuddy-grade", grade.toString());
+    localStorage.setItem("toki-grade", grade.toString());
   };
 
   const handleSetUserName = (name: string) => {
     setUserName(name);
-    localStorage.setItem("studybuddy-name", name);
+    localStorage.setItem("toki-name", name);
   };
 
   const handleSetVoiceEnabled = (enabled: boolean) => {
     setVoiceEnabled(enabled);
-    localStorage.setItem("studybuddy-voice", enabled.toString());
+    localStorage.setItem("toki-voice", enabled.toString());
   };
 
   return (

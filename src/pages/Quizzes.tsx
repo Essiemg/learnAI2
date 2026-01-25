@@ -180,9 +180,9 @@ export default function Quizzes() {
         );
       }
 
-      const activity = JSON.parse(localStorage.getItem("studybuddy_activity") || "{}");
+      const activity = JSON.parse(localStorage.getItem("toki_activity") || "{}");
       activity.quizzesCompleted = (activity.quizzesCompleted || 0) + 1;
-      localStorage.setItem("studybuddy_activity", JSON.stringify(activity));
+      localStorage.setItem("toki_activity", JSON.stringify(activity));
     }
   };
 
