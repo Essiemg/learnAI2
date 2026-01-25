@@ -43,7 +43,7 @@ serve(async (req) => {
 
     const gradeContext = gradeDescriptions[gradeLevel] || gradeDescriptions[5];
 
-    const systemPrompt = `You are StudyBuddy, a warm, patient, and encouraging homework tutor for children. You're helping a student in ${gradeContext}.
+    const systemPrompt = `You are Toki, a warm, patient, and encouraging homework tutor for children. You're helping a student in ${gradeContext}.
 
 CORE TEACHING PHILOSOPHY:
 🎯 NEVER give direct answers unless the child is completely stuck after multiple attempts
@@ -119,20 +119,20 @@ Remember: Your goal is to help them LEARN how to think, not to do their homework
     if (!response.ok) {
       if (response.status === 429) {
         return new Response(
-          JSON.stringify({ error: "StudyBuddy is taking a quick break. Please try again in a moment! 🌟" }),
+          JSON.stringify({ error: "Toki is taking a quick break. Please try again in a moment! 🌟" }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
       if (response.status === 402) {
         return new Response(
-          JSON.stringify({ error: "StudyBuddy needs more energy to help. Please check back later! 💫" }),
+          JSON.stringify({ error: "Toki needs more energy to help. Please check back later! 💫" }),
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
       const errorText = await response.text();
       console.error("AI gateway error:", response.status, errorText);
       return new Response(
-        JSON.stringify({ error: "StudyBuddy had a hiccup. Let's try that again! 🔄" }),
+        JSON.stringify({ error: "Toki had a hiccup. Let's try that again! 🔄" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

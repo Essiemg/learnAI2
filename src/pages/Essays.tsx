@@ -127,9 +127,9 @@ Be encouraging and constructive. Provide age-appropriate feedback.`,
         }
 
         // Track activity
-        const activity = JSON.parse(localStorage.getItem("studybuddy_activity") || "{}");
+        const activity = JSON.parse(localStorage.getItem("toki_activity") || "{}");
         activity.essaysSubmitted = (activity.essaysSubmitted || 0) + 1;
-        localStorage.setItem("studybuddy_activity", JSON.stringify(activity));
+        localStorage.setItem("toki_activity", JSON.stringify(activity));
 
         toast.success("Essay graded!");
       } else {

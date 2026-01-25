@@ -32,8 +32,8 @@ export function Header({ onNewChat, hasMessages }: HeaderProps) {
           <BookOpen className="h-5 w-5 text-primary-foreground" />
         </div>
         <div className="flex flex-col">
-          <span className="font-bold text-lg leading-tight">StudyBuddy</span>
-          <span className="text-xs text-muted-foreground leading-tight">Your Learning Companion</span>
+          <span className="font-bold text-lg leading-tight">Toki</span>
+          <span className="text-xs text-muted-foreground leading-tight">Your AI Tutor</span>
         </div>
       </Link>
 

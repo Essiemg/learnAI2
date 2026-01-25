@@ -34,16 +34,28 @@ export default function Dashboard() {
     essaysSubmitted: 0,
   });
 
-  // Load streak data from localStorage
+  // Load streak data from localStorage (with migration)
   useEffect(() => {
-    const stored = localStorage.getItem("studybuddy_streaks");
+    // Migrate old keys
+    const oldStreaks = localStorage.getItem("studybuddy_streaks");
+    if (oldStreaks && !localStorage.getItem("toki_streaks")) {
+      localStorage.setItem("toki_streaks", oldStreaks);
+      localStorage.removeItem("studybuddy_streaks");
+    }
+    const oldActivity = localStorage.getItem("studybuddy_activity");
+    if (oldActivity && !localStorage.getItem("toki_activity")) {
+      localStorage.setItem("toki_activity", oldActivity);
+      localStorage.removeItem("studybuddy_activity");
+    }
+
+    const stored = localStorage.getItem("toki_streaks");
     if (stored) {
       try {
         setStreakData(JSON.parse(stored));
       } catch {}
     }
 
-    const activity = localStorage.getItem("studybuddy_activity");
+    const activity = localStorage.getItem("toki_activity");
     if (activity) {
       try {
         setActivityData(JSON.parse(activity));

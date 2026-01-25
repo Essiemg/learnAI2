@@ -52,7 +52,7 @@ export default function Homepage() {
           <h1 className="text-4xl md:text-6xl font-bold tracking-tight mb-6">
             Learn Smarter with{" "}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">
-              StudyBuddy
+              Toki
             </span>
           </h1>
           <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
@@ -87,7 +87,7 @@ export default function Homepage() {
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold mb-4">Everything You Need to Excel</h2>
             <p className="text-muted-foreground max-w-2xl mx-auto">
-              From personalized tutoring to progress tracking, StudyBuddy has all the
+              From personalized tutoring to progress tracking, Toki has all the
               tools to help you succeed.
             </p>
           </div>
@@ -145,7 +145,7 @@ export default function Homepage() {
           </div>
           <h2 className="text-3xl font-bold mb-4">Ready to Start Learning?</h2>
           <p className="text-muted-foreground mb-8">
-            Join thousands of students who are already learning smarter with StudyBuddy.
+            Join thousands of students who are already learning smarter with Toki.
           </p>
           <Button size="lg" onClick={() => navigate("/tutor")}>
             Get Started Now

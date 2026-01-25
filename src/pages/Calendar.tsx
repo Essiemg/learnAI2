@@ -20,7 +20,7 @@ interface StreakData {
   activeDays: string[];
 }
 
-const STORAGE_KEY = "studybuddy_streaks";
+const STORAGE_KEY = "toki_streaks";
 
 export default function Calendar() {
   const { user } = useAuth();
@@ -50,6 +50,12 @@ export default function Calendar() {
   }, []);
 
   const loadStreakData = () => {
+    // Migrate from old key
+    const oldStored = localStorage.getItem("studybuddy_streaks");
+    if (oldStored && !localStorage.getItem(STORAGE_KEY)) {
+      localStorage.setItem(STORAGE_KEY, oldStored);
+      localStorage.removeItem("studybuddy_streaks");
+    }
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       try {
@@ -60,7 +66,13 @@ export default function Calendar() {
 
   const checkAndUpdateStreak = () => {
     const today = new Date().toISOString().split("T")[0];
-    const activity = localStorage.getItem("studybuddy_activity");
+    // Migrate old activity key
+    const oldActivity = localStorage.getItem("studybuddy_activity");
+    if (oldActivity && !localStorage.getItem("toki_activity")) {
+      localStorage.setItem("toki_activity", oldActivity);
+      localStorage.removeItem("studybuddy_activity");
+    }
+    const activity = localStorage.getItem("toki_activity");
     
     if (activity) {
       const stored = localStorage.getItem(STORAGE_KEY);
