@@ -13,7 +13,7 @@ export function useLiveVoice({ onUserSpeech, gradeLevel }: UseLiveVoiceOptions) 
   const silenceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastTranscriptRef = useRef<string>("");
   
-  const { speak, stop: stopSpeaking, isSpeaking } = useSpeech();
+  const { speak, stop: stopSpeaking, isSpeaking, isLoading: isTTSLoading } = useSpeech();
 
   const handleTranscript = useCallback(
     (text: string) => {
@@ -101,7 +101,7 @@ export function useLiveVoice({ onUserSpeech, gradeLevel }: UseLiveVoiceOptions) 
     isLiveMode,
     isListening,
     isSpeaking,
-    isProcessing,
+    isProcessing: isProcessing || isTTSLoading,
     toggleLiveMode,
     speakResponse,
     transcript,

@@ -23,7 +23,7 @@ export function LiveVoiceButton({
     if (isProcessing) return "Thinking...";
     if (isSpeaking) return "Speaking...";
     if (isListening) return "Listening...";
-    return "Start Live Chat";
+    return "Start Voice Chat";
   };
 
   return (
