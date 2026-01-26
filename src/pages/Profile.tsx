@@ -1,47 +1,42 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { Card, CardContent } from "@/components/ui/card";
+import { ArrowLeft, Loader2, User, Shield, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { ArrowLeft, Loader2, LogOut, User, Shield, Users } from "lucide-react";
 import { toast } from "sonner";
-import { ThemeToggle } from "@/components/ThemeToggle";
-import { LinkToParent } from "@/components/profile/LinkToParent";
-import { supabase } from "@/integrations/supabase/client";
 import { useEducation } from "@/hooks/useEducation";
-
-const avatarColors = [
-  "bg-red-500",
-  "bg-orange-500",
-  "bg-amber-500",
-  "bg-green-500",
-  "bg-teal-500",
-  "bg-blue-500",
-  "bg-indigo-500",
-  "bg-purple-500",
-  "bg-pink-500",
-];
+import { ProfileAvatar, avatarColors } from "@/components/profile/ProfileAvatar";
+import { ProfileSettings } from "@/components/profile/ProfileSettings";
+import { ProfileSidebar, ProfileSection } from "@/components/profile/ProfileSidebar";
+import { PreferencesSection } from "@/components/profile/PreferencesSection";
+import { LinkToParent } from "@/components/profile/LinkToParent";
 
 export default function Profile() {
-  const { profile, role, updateProfile, signOut, isLoading: authLoading, refreshProfile } = useAuth();
+  const { profile, role, updateProfile, signOut, isLoading: authLoading } = useAuth();
   const { userEducation } = useEducation();
   const navigate = useNavigate();
+  
   const [displayName, setDisplayName] = useState(profile?.display_name || "");
   const [gradeLevel, setGradeLevel] = useState(profile?.grade_level?.toString() || "");
   const [selectedColor, setSelectedColor] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [isLinkedToParent, setIsLinkedToParent] = useState(!!profile?.parent_id);
+  const [activeSection, setActiveSection] = useState<ProfileSection>("account");
 
-  // Check if user is primary level (for showing parent link section)
   const isPrimaryStudent = role === "child" && userEducation?.education_level === "primary";
 
   useEffect(() => {
-    setIsLinkedToParent(!!profile?.parent_id);
-  }, [profile?.parent_id]);
+    if (profile) {
+      setDisplayName(profile.display_name || "");
+      setGradeLevel(profile.grade_level?.toString() || "");
+      setIsLinkedToParent(!!profile.parent_id);
+      
+      // Find the color index from avatar_url
+      const colorIndex = avatarColors.findIndex(c => c === profile.avatar_url);
+      if (colorIndex !== -1) setSelectedColor(colorIndex);
+    }
+  }, [profile]);
 
   if (authLoading) {
     return (
@@ -57,11 +52,6 @@ export default function Profile() {
   }
 
   const handleSave = async () => {
-    if (!displayName.trim()) {
-      toast.error("Please enter a display name");
-      return;
-    }
-
     setIsSaving(true);
 
     const updates: Record<string, unknown> = {
@@ -90,13 +80,6 @@ export default function Profile() {
     navigate("/login");
   };
 
-  const initials = displayName
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-
   const roleInfo = {
     child: { icon: User, label: "Student", color: "text-blue-500" },
     parent: { icon: Users, label: "Parent", color: "text-green-500" },
@@ -105,110 +88,81 @@ export default function Profile() {
 
   const RoleIcon = roleInfo[role || "child"].icon;
 
-  return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/")}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <h1 className="font-semibold">Profile Settings</h1>
-        <ThemeToggle />
-      </header>
-
-      <div className="p-4 max-w-md mx-auto space-y-6">
-        {/* Avatar Section */}
-        <Card>
-          <CardHeader className="text-center">
-            <Avatar className={`w-24 h-24 mx-auto ${avatarColors[selectedColor]} text-white text-2xl font-bold`}>
-              <AvatarFallback className="bg-transparent">{initials || "?"}</AvatarFallback>
-            </Avatar>
-            <CardTitle className="mt-4">{displayName || "Your Name"}</CardTitle>
-            <CardDescription className="flex items-center justify-center gap-1">
-              <RoleIcon className={`h-4 w-4 ${roleInfo[role || "child"].color}`} />
-              {roleInfo[role || "child"].label}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Label className="text-sm text-muted-foreground mb-2 block">Choose your color</Label>
-            <div className="flex flex-wrap gap-2 justify-center">
-              {avatarColors.map((color, index) => (
-                <button
-                  key={color}
-                  onClick={() => setSelectedColor(index)}
-                  className={`w-8 h-8 rounded-full ${color} transition-transform ${
-                    selectedColor === index ? "ring-2 ring-primary ring-offset-2 scale-110" : ""
-                  }`}
-                />
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Profile Details */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Profile Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="displayName">Display Name</Label>
-              <Input
-                id="displayName"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="Your name"
-              />
-            </div>
-
-            {role === "child" && (
-              <div className="space-y-2">
-                <Label htmlFor="gradeLevel">Grade Level</Label>
-                <Select value={gradeLevel} onValueChange={setGradeLevel}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select grade" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[1, 2, 3, 4, 5, 6, 7, 8].map((grade) => (
-                      <SelectItem key={grade} value={grade.toString()}>
-                        Grade {grade}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            <Button onClick={handleSave} className="w-full" disabled={isSaving}>
-              {isSaving ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                "Save Changes"
-              )}
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Link to Parent - Only for Primary Students */}
-        {isPrimaryStudent && (
+  const renderContent = () => {
+    switch (activeSection) {
+      case "account":
+        return (
+          <ProfileSettings
+            displayName={displayName}
+            gradeLevel={gradeLevel}
+            role={role}
+            onDisplayNameChange={setDisplayName}
+            onGradeLevelChange={setGradeLevel}
+            onSave={handleSave}
+            isSaving={isSaving}
+          />
+        );
+      case "settings":
+        return <PreferencesSection />;
+      case "parent-link":
+        return (
           <LinkToParent
             isLinked={isLinkedToParent}
             onLinkSuccess={() => setIsLinkedToParent(true)}
           />
-        )}
+        );
+      default:
+        return null;
+    }
+  };
 
-        {/* Sign Out */}
-        <Button
-          variant="outline"
-          className="w-full text-destructive hover:text-destructive"
-          onClick={handleSignOut}
-        >
-          <LogOut className="mr-2 h-4 w-4" />
-          Sign Out
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="flex items-center gap-4 px-4 py-3 border-b border-border">
+        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+          <ArrowLeft className="h-5 w-5" />
         </Button>
+        <h1 className="font-semibold">Profile & Settings</h1>
+      </header>
+
+      <div className="flex flex-col md:flex-row max-w-5xl mx-auto p-4 gap-6">
+        {/* Sidebar */}
+        <aside className="w-full md:w-64 shrink-0">
+          <Card>
+            <CardContent className="p-4">
+              {/* Avatar at top of sidebar */}
+              <div className="mb-6 pb-6 border-b border-border">
+                <ProfileAvatar
+                  displayName={displayName}
+                  selectedColor={selectedColor}
+                  onColorChange={setSelectedColor}
+                />
+                <div className="mt-3 flex items-center justify-center gap-1 text-sm text-muted-foreground">
+                  <RoleIcon className={`h-4 w-4 ${roleInfo[role || "child"].color}`} />
+                  <span>{roleInfo[role || "child"].label}</span>
+                </div>
+              </div>
+
+              {/* Navigation */}
+              <ProfileSidebar
+                activeSection={activeSection}
+                onSectionChange={setActiveSection}
+                showParentLink={isPrimaryStudent}
+                onSignOut={handleSignOut}
+              />
+            </CardContent>
+          </Card>
+        </aside>
+
+        {/* Main Content */}
+        <main className="flex-1">
+          <Card>
+            <CardContent className="p-6">
+              {renderContent()}
+            </CardContent>
+          </Card>
+        </main>
       </div>
     </div>
   );
