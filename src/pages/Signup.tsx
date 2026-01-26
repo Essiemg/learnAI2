@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BookOpen, Loader2, GraduationCap, Users } from "lucide-react";
 import { toast } from "sonner";
 
@@ -18,7 +17,6 @@ export default function Signup() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [role, setRole] = useState<UserRole>("child");
-  const [gradeLevel, setGradeLevel] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
   const { signUp } = useAuth();
   const navigate = useNavigate();
@@ -36,19 +34,14 @@ export default function Signup() {
       return;
     }
 
-    if (role === "child" && !gradeLevel) {
-      toast.error("Please select your grade level");
-      return;
-    }
-
     setIsLoading(true);
 
+    // Sign up - onboarding will handle education level and subjects
     const { error } = await signUp(
       email,
       password,
       role,
-      displayName,
-      role === "child" ? parseInt(gradeLevel, 10) : undefined
+      displayName
     );
 
     if (error) {
@@ -57,8 +50,13 @@ export default function Signup() {
       return;
     }
 
-    toast.success("Account created! Welcome to StudyBuddy! 🎉");
-    navigate("/");
+    if (role === "child") {
+      toast.success("Account created! Let's personalize your experience.");
+      navigate("/onboarding");
+    } else {
+      toast.success("Account created! Welcome to Toki! 🎉");
+      navigate("/parent");
+    }
   };
 
   return (
@@ -68,7 +66,7 @@ export default function Signup() {
           <div className="mx-auto mb-4 w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center">
             <BookOpen className="h-8 w-8 text-primary-foreground" />
           </div>
-          <CardTitle className="text-2xl">Join StudyBuddy!</CardTitle>
+          <CardTitle className="text-2xl">Join Toki!</CardTitle>
           <CardDescription>Create your account to start learning</CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
@@ -117,24 +115,6 @@ export default function Signup() {
                 disabled={isLoading}
               />
             </div>
-
-            {role === "child" && (
-              <div className="space-y-2">
-                <Label htmlFor="gradeLevel">Grade Level</Label>
-                <Select value={gradeLevel} onValueChange={setGradeLevel}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select your grade" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[1, 2, 3, 4, 5, 6, 7, 8].map((grade) => (
-                      <SelectItem key={grade} value={grade.toString()}>
-                        Grade {grade}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
 
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>

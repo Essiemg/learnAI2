@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 import { UserProvider } from "@/contexts/UserContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { TopicProvider } from "@/contexts/TopicContext";
+import { EducationProvider } from "@/contexts/EducationContext";
 import { MainLayout } from "@/components/MainLayout";
 import Homepage from "./pages/Homepage";
 import Dashboard from "./pages/Dashboard";
@@ -19,6 +20,7 @@ import Diagrams from "./pages/Diagrams";
 import Calendar from "./pages/Calendar";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import Onboarding from "./pages/Onboarding";
 import Profile from "./pages/Profile";
 import ParentDashboard from "./pages/ParentDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
@@ -32,38 +34,41 @@ const App = () => (
     <ThemeProvider>
       <AuthProvider>
         <UserProvider>
-          <TopicProvider>
-            <TooltipProvider>
-              <Toaster />
-              <Sonner />
-              <BrowserRouter>
-                <Routes>
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/signup" element={<Signup />} />
-                  <Route path="/*" element={
-                    <MainLayout>
-                      <Routes>
-                        <Route path="/" element={<Homepage />} />
-                        <Route path="/dashboard" element={<Dashboard />} />
-                        <Route path="/tutor" element={<AITutor />} />
-                        <Route path="/flashcards" element={<Flashcards />} />
-                        <Route path="/quizzes" element={<Quizzes />} />
-                        <Route path="/essays" element={<Essays />} />
-                        <Route path="/summarize" element={<Summarize />} />
-                        <Route path="/diagrams" element={<Diagrams />} />
-                        <Route path="/calendar" element={<Calendar />} />
-                        <Route path="/profile" element={<Profile />} />
-                        <Route path="/parent" element={<ParentDashboard />} />
-                        <Route path="/admin" element={<AdminDashboard />} />
-                        <Route path="/study-sets" element={<StudySets />} />
-                        <Route path="*" element={<NotFound />} />
-                      </Routes>
-                    </MainLayout>
-                  } />
-                </Routes>
-              </BrowserRouter>
-            </TooltipProvider>
-          </TopicProvider>
+          <EducationProvider>
+            <TopicProvider>
+              <TooltipProvider>
+                <Toaster />
+                <Sonner />
+                <BrowserRouter>
+                  <Routes>
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/signup" element={<Signup />} />
+                    <Route path="/onboarding" element={<Onboarding />} />
+                    <Route path="/*" element={
+                      <MainLayout>
+                        <Routes>
+                          <Route path="/" element={<Homepage />} />
+                          <Route path="/dashboard" element={<Dashboard />} />
+                          <Route path="/tutor" element={<AITutor />} />
+                          <Route path="/flashcards" element={<Flashcards />} />
+                          <Route path="/quizzes" element={<Quizzes />} />
+                          <Route path="/essays" element={<Essays />} />
+                          <Route path="/summarize" element={<Summarize />} />
+                          <Route path="/diagrams" element={<Diagrams />} />
+                          <Route path="/calendar" element={<Calendar />} />
+                          <Route path="/profile" element={<Profile />} />
+                          <Route path="/parent" element={<ParentDashboard />} />
+                          <Route path="/admin" element={<AdminDashboard />} />
+                          <Route path="/study-sets" element={<StudySets />} />
+                          <Route path="*" element={<NotFound />} />
+                        </Routes>
+                      </MainLayout>
+                    } />
+                  </Routes>
+                </BrowserRouter>
+              </TooltipProvider>
+            </TopicProvider>
+          </EducationProvider>
         </UserProvider>
       </AuthProvider>
     </ThemeProvider>
