@@ -282,6 +282,36 @@ export type Database = {
         }
         Relationships: []
       }
+      subjects: {
+        Row: {
+          category: string | null
+          created_at: string
+          description: string | null
+          education_level: Database["public"]["Enums"]["education_level"]
+          icon: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          education_level: Database["public"]["Enums"]["education_level"]
+          icon?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          education_level?: Database["public"]["Enums"]["education_level"]
+          icon?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       summaries: {
         Row: {
           created_at: string
@@ -370,6 +400,36 @@ export type Database = {
           },
         ]
       }
+      user_education: {
+        Row: {
+          created_at: string
+          education_level: Database["public"]["Enums"]["education_level"]
+          field_of_study: string | null
+          id: string
+          onboarding_completed: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          education_level: Database["public"]["Enums"]["education_level"]
+          field_of_study?: string | null
+          id?: string
+          onboarding_completed?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          education_level?: Database["public"]["Enums"]["education_level"]
+          field_of_study?: string | null
+          id?: string
+          onboarding_completed?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -390,6 +450,35 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      user_subjects: {
+        Row: {
+          created_at: string
+          id: string
+          subject_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          subject_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          subject_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_subjects_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       voice_sessions: {
         Row: {
@@ -443,6 +532,7 @@ export type Database = {
       }
     }
     Enums: {
+      education_level: "primary" | "high_school" | "undergraduate"
       user_role: "child" | "parent" | "admin"
     }
     CompositeTypes: {
@@ -571,6 +661,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      education_level: ["primary", "high_school", "undergraduate"],
       user_role: ["child", "parent", "admin"],
     },
   },
