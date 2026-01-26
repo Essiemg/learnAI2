@@ -1,4 +1,4 @@
-import { BookOpen, RotateCcw, User, LogIn } from "lucide-react";
+import { RotateCcw, User, LogIn } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { VoiceToggle } from "./VoiceToggle";
 import { GradeSelector } from "./GradeSelector";
@@ -7,6 +7,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useAuth } from "@/contexts/AuthContext";
 import { Link, useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import tokiLogo from "@/assets/toki-logo.png";
 
 interface HeaderProps {
   onNewChat: () => void;
@@ -28,13 +29,7 @@ export function Header({ onNewChat, hasMessages }: HeaderProps) {
     <header className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/50 backdrop-blur-sm">
       {/* Logo */}
       <Link to="/" className="flex items-center gap-2">
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-          <BookOpen className="h-5 w-5 text-primary-foreground" />
-        </div>
-        <div className="flex flex-col">
-          <span className="font-bold text-lg leading-tight">Toki</span>
-          <span className="text-xs text-muted-foreground leading-tight">Your AI Tutor</span>
-        </div>
+        <img src={tokiLogo} alt="Toki" className="h-10 w-auto" />
       </Link>
 
       {/* Controls */}

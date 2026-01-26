@@ -1,8 +1,9 @@
-import { BookOpen, Sparkles, Brain, Calendar, Trophy, ArrowRight } from "lucide-react";
+import { Sparkles, Brain, Calendar, Trophy, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import tokiLogo from "@/assets/toki-logo.png";
 
 const features = [
   {
@@ -140,9 +141,7 @@ export default function Homepage() {
       {/* CTA Section */}
       <section className="py-20 px-6">
         <div className="max-w-3xl mx-auto text-center">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center mx-auto mb-6">
-            <BookOpen className="h-8 w-8 text-primary-foreground" />
-          </div>
+          <img src={tokiLogo} alt="Toki" className="h-20 w-auto mx-auto mb-6" />
           <h2 className="text-3xl font-bold mb-4">Ready to Start Learning?</h2>
           <p className="text-muted-foreground mb-8">
             Join thousands of students who are already learning smarter with Toki.
