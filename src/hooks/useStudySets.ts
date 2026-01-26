@@ -18,6 +18,7 @@ interface Material {
   file_size: number | null;
   extracted_text: string | null;
   study_set_id: string | null;
+  source_url: string | null;
   created_at: string;
 }
 
@@ -234,6 +235,33 @@ export function useStudySets() {
     }
   };
 
+  const addLinkMaterial = async (url: string, name: string, studySetId?: string) => {
+    if (!user) return null;
+
+    try {
+      const { data, error } = await supabase
+        .from("uploaded_materials")
+        .insert({
+          user_id: user.id,
+          file_name: name,
+          file_path: "", // No file path for links
+          file_type: "link",
+          file_size: null,
+          source_url: url,
+          study_set_id: studySetId || null,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      setMaterials((prev) => [data, ...prev]);
+      return data;
+    } catch (e) {
+      console.error("Error adding link material:", e);
+      return null;
+    }
+  };
+
   return {
     studySets,
     materials,
@@ -247,5 +275,6 @@ export function useStudySets() {
     deleteMaterial,
     getMaterialsInSet,
     getMaterialBase64,
+    addLinkMaterial,
   };
 }

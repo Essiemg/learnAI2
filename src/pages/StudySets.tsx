@@ -10,6 +10,8 @@ import {
   MoreVertical,
   Loader2,
   FolderPlus,
+  Link2,
+  Play,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -29,6 +31,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -43,6 +46,20 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
+import { MaterialActionDialog } from "@/components/MaterialActionDialog";
+import { LinkUploadDialog } from "@/components/LinkUploadDialog";
+
+interface Material {
+  id: string;
+  file_name: string;
+  file_path: string;
+  file_type: string;
+  file_size: number | null;
+  extracted_text: string | null;
+  study_set_id: string | null;
+  source_url?: string | null;
+  created_at: string;
+}
 
 export default function StudySets() {
   const { user } = useAuth();
@@ -58,6 +75,7 @@ export default function StudySets() {
     moveMaterial,
     deleteMaterial,
     getMaterialsInSet,
+    addLinkMaterial,
   } = useStudySets();
 
   const [newSetName, setNewSetName] = useState("");
@@ -66,6 +84,9 @@ export default function StudySets() {
   const [uploadTarget, setUploadTarget] = useState<string | null>(null);
   const [movingMaterial, setMovingMaterial] = useState<string | null>(null);
   const [moveTargetSet, setMoveTargetSet] = useState<string>("");
+  const [actionMaterial, setActionMaterial] = useState<Material | null>(null);
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  const [linkUploadTarget, setLinkUploadTarget] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleCreateSet = async () => {
@@ -164,9 +185,20 @@ export default function StudySets() {
     }
   };
 
-  const getFileIcon = (type: string) => {
-    if (type.startsWith("image/")) return Image;
+  const getFileIcon = (material: Material) => {
+    if (material.file_type === "link" || material.source_url) return Link2;
+    if (material.file_type.startsWith("image/")) return Image;
     return FileText;
+  };
+
+  const handleLinkUpload = async (url: string, name: string) => {
+    const result = await addLinkMaterial(url, name, linkUploadTarget || undefined);
+    return !!result;
+  };
+
+  const openLinkDialog = (studySetId: string | null) => {
+    setLinkUploadTarget(studySetId);
+    setLinkDialogOpen(true);
   };
 
   const formatFileSize = (bytes: number | null) => {
@@ -279,6 +311,14 @@ export default function StudySets() {
                       <Button
                         variant="outline"
                         size="sm"
+                        onClick={() => openLinkDialog(set.id)}
+                      >
+                        <Link2 className="h-4 w-4 mr-1" />
+                        Add Link
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={() => handleUploadClick(set.id)}
                         disabled={isUploading}
                       >
@@ -322,7 +362,7 @@ export default function StudySets() {
                   ) : (
                     <div className="grid gap-2">
                       {setMaterials.map((material) => {
-                        const Icon = getFileIcon(material.file_type);
+                        const Icon = getFileIcon(material);
                         return (
                           <div
                             key={material.id}
@@ -334,9 +374,18 @@ export default function StudySets() {
                                 {material.file_name}
                               </p>
                               <p className="text-xs text-muted-foreground">
-                                {formatFileSize(material.file_size)}
+                                {material.source_url ? "Link" : formatFileSize(material.file_size)}
                               </p>
                             </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setActionMaterial(material)}
+                              className="opacity-0 group-hover:opacity-100"
+                            >
+                              <Play className="h-4 w-4 mr-1" />
+                              Use
+                            </Button>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button
@@ -347,7 +396,12 @@ export default function StudySets() {
                                   <MoreVertical className="h-4 w-4" />
                                 </Button>
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
+                              <DropdownMenuContent align="end" className="bg-popover">
+                                <DropdownMenuItem onClick={() => setActionMaterial(material)}>
+                                  <Play className="h-4 w-4 mr-2" />
+                                  Use this material
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
                                 <DropdownMenuItem onClick={() => setMovingMaterial(material.id)}>
                                   <FolderOpen className="h-4 w-4 mr-2" />
                                   Move to...
@@ -384,21 +438,31 @@ export default function StudySets() {
                     ({unorganizedMaterials.length} files)
                   </span>
                 </CardTitle>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleUploadClick(null)}
-                  disabled={isUploading}
-                >
-                  {isUploading && uploadTarget === null ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <>
-                      <Upload className="h-4 w-4 mr-1" />
-                      Upload
-                    </>
-                  )}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openLinkDialog(null)}
+                  >
+                    <Link2 className="h-4 w-4 mr-1" />
+                    Add Link
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleUploadClick(null)}
+                    disabled={isUploading}
+                  >
+                    {isUploading && uploadTarget === null ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Upload className="h-4 w-4 mr-1" />
+                        Upload
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -409,7 +473,7 @@ export default function StudySets() {
               ) : (
                 <div className="grid gap-2">
                   {unorganizedMaterials.map((material) => {
-                    const Icon = getFileIcon(material.file_type);
+                    const Icon = getFileIcon(material);
                     return (
                       <div
                         key={material.id}
@@ -421,9 +485,18 @@ export default function StudySets() {
                             {material.file_name}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {formatFileSize(material.file_size)}
+                            {material.source_url ? "Link" : formatFileSize(material.file_size)}
                           </p>
                         </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setActionMaterial(material)}
+                          className="opacity-0 group-hover:opacity-100"
+                        >
+                          <Play className="h-4 w-4 mr-1" />
+                          Use
+                        </Button>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button
@@ -434,7 +507,12 @@ export default function StudySets() {
                               <MoreVertical className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
+                          <DropdownMenuContent align="end" className="bg-popover">
+                            <DropdownMenuItem onClick={() => setActionMaterial(material)}>
+                              <Play className="h-4 w-4 mr-2" />
+                              Use this material
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={() => setMovingMaterial(material.id)}>
                               <FolderOpen className="h-4 w-4 mr-2" />
                               Move to...
@@ -532,6 +610,21 @@ export default function StudySets() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Material Action Dialog */}
+      <MaterialActionDialog
+        material={actionMaterial}
+        open={!!actionMaterial}
+        onOpenChange={(open) => !open && setActionMaterial(null)}
+      />
+
+      {/* Link Upload Dialog */}
+      <LinkUploadDialog
+        open={linkDialogOpen}
+        onOpenChange={setLinkDialogOpen}
+        onUpload={handleLinkUpload}
+        studySetId={linkUploadTarget}
+      />
     </div>
   );
 }
