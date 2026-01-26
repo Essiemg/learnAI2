@@ -11,6 +11,41 @@ interface Message {
 }
 
 type EducationLevel = "primary" | "high_school" | "undergraduate";
+type LearningStyle = "step_by_step" | "conceptual" | "practice_oriented" | "visual" | "mixed";
+type ConfidenceLevel = "confused" | "uncertain" | "neutral" | "confident" | "mastered";
+
+interface LearnerPreferences {
+  style: LearningStyle;
+  explanationDepth: number;
+  prefersExamples: boolean;
+  prefersAnalogies: boolean;
+  prefersStepByStep: boolean;
+  prefersPracticeProblems: boolean;
+}
+
+interface LearnerHistory {
+  totalInteractions: number;
+  topicsCovered: number;
+  averageConfidence: ConfidenceLevel;
+  strugglingTopics: string[];
+  strongTopics: string[];
+}
+
+interface CurrentTopic {
+  name: string;
+  masteryLevel: number;
+  timesStudied: number;
+  timesStruggled: number;
+}
+
+interface LearnerProfile {
+  educationLevel: EducationLevel;
+  fieldOfStudy?: string;
+  subjects: string[];
+  preferences: LearnerPreferences;
+  history: LearnerHistory;
+  currentTopic?: CurrentTopic;
+}
 
 interface RequestBody {
   messages: Message[];
@@ -19,6 +54,7 @@ interface RequestBody {
   fieldOfStudy?: string;
   subjects?: string[];
   imageData?: string;
+  learnerProfile?: LearnerProfile;
 }
 
 serve(async (req) => {
@@ -27,22 +63,44 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, gradeLevel, educationLevel, fieldOfStudy, subjects, imageData }: RequestBody = await req.json();
+    const { 
+      messages, 
+      gradeLevel, 
+      educationLevel, 
+      fieldOfStudy, 
+      subjects, 
+      imageData,
+      learnerProfile 
+    }: RequestBody = await req.json();
+    
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    // Build education-level-specific context and prompts
+    // Build adaptive system prompt based on learner profile
     const buildSystemPrompt = (): string => {
-      // For undergraduate level
-      if (educationLevel === "undergraduate") {
-        const subjectContext = subjects && subjects.length > 0 
-          ? `The student is studying: ${subjects.join(", ")}. ` 
-          : "";
-        const fieldContext = fieldOfStudy ? `Their field of study is ${fieldOfStudy}. ` : "";
-        
+      const basePrompt = buildEducationLevelPrompt(educationLevel, gradeLevel, fieldOfStudy, subjects);
+      const adaptiveInstructions = buildAdaptiveInstructions(learnerProfile);
+      const topicContext = buildTopicContext(learnerProfile);
+      
+      return `${basePrompt}\n\n${adaptiveInstructions}\n\n${topicContext}`;
+    };
+
+    // Build base prompt based on education level
+    const buildEducationLevelPrompt = (
+      eduLevel?: EducationLevel,
+      grade?: number,
+      field?: string,
+      subs?: string[]
+    ): string => {
+      const subjectContext = subs && subs.length > 0 
+        ? `The student is studying: ${subs.join(", ")}. ` 
+        : "";
+      const fieldContext = field ? `Their field of study is ${field}. ` : "";
+
+      if (eduLevel === "undergraduate") {
         return `You are Toki, an academic tutor for undergraduate university students. ${fieldContext}${subjectContext}
 
 ACADEMIC APPROACH:
@@ -60,27 +118,13 @@ TEACHING PHILOSOPHY:
 🔬 Support research and analytical thinking
 
 COMMUNICATION STYLE:
-- Use academic language appropriate for university students
 - Be professional yet approachable
 - Provide thorough, well-structured explanations
 - Reference relevant theories, frameworks, and methodologies
-- Encourage independent thinking and scholarly inquiry
-
-SAFETY:
-- Keep all content educational and appropriate
-- Redirect off-topic conversations back to learning
-- Maintain professional academic boundaries
-
-Remember: Help them develop as independent scholars and critical thinkers.`;
+- Encourage independent thinking and scholarly inquiry`;
       }
       
-      // For high school level
-      if (educationLevel === "high_school") {
-        const subjectContext = subjects && subjects.length > 0 
-          ? `They are studying: ${subjects.join(", ")}. ` 
-          : "";
-        const fieldContext = fieldOfStudy ? `focusing on ${fieldOfStudy}. ` : "";
-        
+      if (eduLevel === "high_school") {
         return `You are Toki, a supportive tutor for high school students. ${fieldContext}${subjectContext}
 
 EXAM-FOCUSED APPROACH:
@@ -101,18 +145,10 @@ COMMUNICATION STYLE:
 - Use clear, age-appropriate language for teenagers
 - Be encouraging but respect their growing independence
 - Use relevant examples from their world
-- Keep explanations focused and structured
-- Ask one concept at a time
-
-SAFETY:
-- Keep all content educational and appropriate
-- Redirect off-topic conversations back to learning
-- Be supportive while maintaining appropriate boundaries
-
-Remember: Help them build confidence and strong academic foundations.`;
+- Keep explanations focused and structured`;
       }
       
-      // For primary school (default) - use grade level
+      // Primary school (default)
       const gradeDescriptions: Record<number, string> = {
         1: "1st grade (age 6-7), use very simple words and lots of encouragement",
         2: "2nd grade (age 7-8), use simple language with basic concepts",
@@ -123,10 +159,7 @@ Remember: Help them build confidence and strong academic foundations.`;
         7: "7th grade (age 12-13), can handle algebraic and scientific thinking",
         8: "8th grade (age 13-14), ready for pre-high school level concepts",
       };
-      const gradeContext = gradeDescriptions[gradeLevel] || gradeDescriptions[5];
-      const subjectContext = subjects && subjects.length > 0 
-        ? `They are learning: ${subjects.join(", ")}. ` 
-        : "";
+      const gradeContext = gradeDescriptions[grade || 5] || gradeDescriptions[5];
 
       return `You are Toki, a warm, patient, and encouraging homework tutor for children. You're helping a student in ${gradeContext}. ${subjectContext}
 
@@ -145,23 +178,123 @@ YOUR APPROACH:
 5. If they're frustrated, remind them that struggling is part of learning
 
 COMMUNICATION STYLE:
-- Use simple, age-appropriate language for ${gradeContext}
+- Use simple, age-appropriate language
 - Be enthusiastic but not overwhelming
 - Use emojis sparingly to add friendliness: ⭐ 🌟 💪 🎉 🤔 💡
 - Keep responses concise - children have short attention spans
-- Ask one question at a time
+- Ask one question at a time`;
+    };
 
-HEALTHY HABITS (mention occasionally, not every message):
-- After 20-30 minutes, gently suggest a short break
-- Encourage staying hydrated
-- Praise persistence and effort
+    // Build adaptive instructions based on learner profile
+    const buildAdaptiveInstructions = (profile?: LearnerProfile): string => {
+      if (!profile) return "";
 
-SAFETY:
-- Keep all content strictly educational and child-appropriate
-- Redirect any off-topic conversations back to learning
-- Be supportive but maintain appropriate boundaries
+      const { preferences, history } = profile;
+      const instructions: string[] = [];
 
-Remember: Your goal is to help them LEARN how to think, not to do their homework for them. A child who struggles and succeeds learns more than one who gets easy answers.`;
+      instructions.push("=== PERSONALIZED TEACHING STRATEGY ===");
+      instructions.push(`Based on this learner's profile, adapt your teaching approach:`);
+
+      // Learning style adaptation
+      switch (preferences.style) {
+        case "step_by_step":
+          instructions.push("• This learner benefits from STEP-BY-STEP explanations. Break down every concept into small, sequential steps.");
+          break;
+        case "conceptual":
+          instructions.push("• This learner grasps CONCEPTUAL explanations well. Focus on the 'why' and underlying principles.");
+          break;
+        case "practice_oriented":
+          instructions.push("• This learner learns best through PRACTICE. Provide exercises and problems to solve after explaining.");
+          break;
+        case "visual":
+          instructions.push("• This learner is VISUAL. Use diagrams, charts, and visual descriptions when possible.");
+          break;
+        default:
+          instructions.push("• Use a BALANCED approach mixing explanations with examples and practice.");
+      }
+
+      // Explanation depth
+      if (preferences.explanationDepth === 1) {
+        instructions.push("• Keep explanations SIMPLE and brief. This learner grasps concepts quickly.");
+      } else if (preferences.explanationDepth === 3) {
+        instructions.push("• Provide DETAILED, thorough explanations. This learner benefits from comprehensive coverage.");
+      }
+
+      // Preferred teaching tools
+      if (preferences.prefersExamples) {
+        instructions.push("• Include concrete EXAMPLES in your explanations - they help this learner understand.");
+      }
+      if (preferences.prefersAnalogies) {
+        instructions.push("• Use ANALOGIES and comparisons to familiar concepts when explaining new ideas.");
+      }
+      if (preferences.prefersStepByStep) {
+        instructions.push("• Number your steps and proceed ONE STEP AT A TIME before moving on.");
+      }
+      if (preferences.prefersPracticeProblems) {
+        instructions.push("• Offer PRACTICE PROBLEMS after explanations to reinforce learning.");
+      }
+
+      // Confidence-based approach
+      switch (history.averageConfidence) {
+        case "confused":
+        case "uncertain":
+          instructions.push("• This learner often struggles. Be EXTRA PATIENT and encouraging. Check for understanding frequently.");
+          instructions.push("• Start with the basics before building up. Never assume prior knowledge.");
+          break;
+        case "confident":
+        case "mastered":
+          instructions.push("• This learner is generally confident. You can move FASTER and challenge them more.");
+          instructions.push("• Feel free to introduce advanced concepts or connections to other topics.");
+          break;
+      }
+
+      // Experience level
+      if (history.totalInteractions < 10) {
+        instructions.push("• NEW LEARNER: Still getting to know their style. Ask more clarifying questions to understand their needs.");
+      } else if (history.totalInteractions > 50) {
+        instructions.push("• EXPERIENCED LEARNER: You have built rapport. Reference previous concepts and build on established knowledge.");
+      }
+
+      return instructions.join("\n");
+    };
+
+    // Build context about current topic
+    const buildTopicContext = (profile?: LearnerProfile): string => {
+      if (!profile) return "";
+
+      const context: string[] = [];
+      context.push("=== TOPIC AWARENESS ===");
+
+      // Topics they struggle with
+      if (profile.history.strugglingTopics && profile.history.strugglingTopics.length > 0) {
+        context.push(`⚠️ Topics this learner has struggled with: ${profile.history.strugglingTopics.slice(0, 5).join(", ")}`);
+        context.push("• If the current topic relates to these, provide extra scaffolding and patience.");
+      }
+
+      // Topics they're strong in
+      if (profile.history.strongTopics && profile.history.strongTopics.length > 0) {
+        context.push(`✅ Topics this learner excels at: ${profile.history.strongTopics.slice(0, 5).join(", ")}`);
+        context.push("• You can reference these as building blocks when explaining new concepts.");
+      }
+
+      // Current topic mastery
+      if (profile.currentTopic) {
+        const { name, masteryLevel, timesStudied, timesStruggled } = profile.currentTopic;
+        context.push(`📚 Current topic: "${name}"`);
+        context.push(`   - Mastery level: ${masteryLevel}% (studied ${timesStudied} times, struggled ${timesStruggled} times)`);
+        
+        if (masteryLevel < 30) {
+          context.push("   - LOW MASTERY: Learner is still building foundational understanding. Be thorough.");
+        } else if (masteryLevel > 70) {
+          context.push("   - HIGH MASTERY: Learner knows this well. Focus on advanced aspects or edge cases.");
+        }
+        
+        if (timesStruggled > timesStudied / 2) {
+          context.push("   - FREQUENT STRUGGLES: Learner has difficulty with this topic. Try different approaches.");
+        }
+      }
+
+      return context.join("\n");
     };
 
     const systemPrompt = buildSystemPrompt();
@@ -185,7 +318,7 @@ Remember: Your goal is to help them LEARN how to think, not to do their homework
           : "";
         
         lastMessage.content = [
-          { type: "text", text: textContent || "Can you help me with this homework problem? Please look at the image and guide me through it step by step." },
+          { type: "text", text: textContent || "Can you help me with this? Please guide me through it step by step." },
           { type: "image_url", image_url: { url: imageData } },
         ];
       }

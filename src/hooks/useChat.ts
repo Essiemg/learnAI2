@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from "react";
 import { Message, ChatState } from "@/types/chat";
 import type { EducationLevel } from "@/types/education";
+import type { LearnerProfile } from "@/types/learningAnalytics";
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/tutor-chat`;
 
@@ -9,10 +10,12 @@ interface UseChatOptions {
   educationLevel?: EducationLevel;
   fieldOfStudy?: string | null;
   subjects?: string[];
+  learnerProfile?: LearnerProfile;
+  onInteraction?: (topic: string, message: string) => void;
 }
 
 export function useChat(options: UseChatOptions) {
-  const { gradeLevel, educationLevel, fieldOfStudy, subjects } = options;
+  const { gradeLevel, educationLevel, fieldOfStudy, subjects, learnerProfile, onInteraction } = options;
   const [state, setState] = useState<ChatState>({
     messages: [],
     isLoading: false,
@@ -40,6 +43,13 @@ export function useChat(options: UseChatOptions) {
         error: null,
       }));
 
+      // Track interaction for learning analytics
+      if (onInteraction) {
+        // Extract topic from message or use "general"
+        const topic = extractTopic(content) || "general";
+        onInteraction(topic, content);
+      }
+
       // Prepare messages for API (last 10 for context)
       const apiMessages = state.messages.slice(-10).map((m) => ({
         role: m.role,
@@ -56,14 +66,15 @@ export function useChat(options: UseChatOptions) {
             "Content-Type": "application/json",
             Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
           },
-        body: JSON.stringify({
-          messages: apiMessages,
-          gradeLevel,
-          educationLevel,
-          fieldOfStudy,
-          subjects,
-          imageData,
-        }),
+          body: JSON.stringify({
+            messages: apiMessages,
+            gradeLevel,
+            educationLevel,
+            fieldOfStudy,
+            subjects,
+            imageData,
+            learnerProfile,
+          }),
           signal: abortControllerRef.current.signal,
         });
 
@@ -150,7 +161,7 @@ export function useChat(options: UseChatOptions) {
         }));
       }
     },
-    [gradeLevel, educationLevel, fieldOfStudy, subjects, state.messages]
+    [gradeLevel, educationLevel, fieldOfStudy, subjects, learnerProfile, onInteraction, state.messages]
   );
 
   const clearMessages = useCallback(() => {
@@ -174,4 +185,28 @@ export function useChat(options: UseChatOptions) {
     setMessages,
     cancelRequest,
   };
+}
+
+// Simple topic extraction from user message
+function extractTopic(message: string): string {
+  const lowerMessage = message.toLowerCase();
+  
+  // Common subject keywords
+  const subjects = [
+    "math", "mathematics", "algebra", "geometry", "calculus",
+    "science", "physics", "chemistry", "biology",
+    "english", "writing", "reading", "grammar",
+    "history", "geography", "social studies",
+    "computer", "programming", "coding",
+    "art", "music", "physical education",
+  ];
+  
+  for (const subject of subjects) {
+    if (lowerMessage.includes(subject)) {
+      return subject;
+    }
+  }
+  
+  // Return first few words as topic
+  return message.split(" ").slice(0, 3).join(" ");
 }

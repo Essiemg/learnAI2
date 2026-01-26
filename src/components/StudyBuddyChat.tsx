@@ -4,6 +4,7 @@ import { useEducationContext } from "@/contexts/EducationContext";
 import { useChat } from "@/hooks/useChat";
 import { useChatHistory } from "@/hooks/useChatHistory";
 import { useGeminiLive } from "@/hooks/useGeminiLive";
+import { useLearningAnalytics } from "@/hooks/useLearningAnalytics";
 import { Header } from "./Header";
 import { ChatContainer } from "./ChatContainer";
 import { ChatInput } from "./ChatInput";
@@ -21,6 +22,13 @@ export function StudyBuddyChat() {
   const { userEducation, userSubjects } = useEducationContext();
   const navigate = useNavigate();
 
+  // Learning analytics for adaptive tutoring
+  const {
+    trackInteraction,
+    buildLearnerProfile,
+    resetSessionStats,
+  } = useLearningAnalytics();
+
   // Sync grade level from profile
   useEffect(() => {
     if (profile?.grade_level) {
@@ -34,11 +42,25 @@ export function StudyBuddyChat() {
   // Build education context for personalized AI
   const subjectNames = userSubjects.map(s => s.name);
   
+  // Build learner profile for adaptive responses
+  const learnerProfile = buildLearnerProfile(
+    userEducation?.education_level || "primary",
+    userEducation?.field_of_study || undefined,
+    subjectNames
+  );
+
+  // Handle interaction tracking
+  const handleInteraction = useCallback((topic: string, message: string) => {
+    trackInteraction(topic, message);
+  }, [trackInteraction]);
+  
   const { messages, isLoading, error, sendMessage, clearMessages, setMessages } = useChat({
     gradeLevel: effectiveGradeLevel,
     educationLevel: userEducation?.education_level,
     fieldOfStudy: userEducation?.field_of_study,
     subjects: subjectNames,
+    learnerProfile,
+    onInteraction: handleInteraction,
   });
 
   const {
@@ -108,6 +130,7 @@ export function StudyBuddyChat() {
   const handleNewChat = () => {
     clearMessages();
     startNewSession();
+    resetSessionStats(); // Reset learning analytics for new conversation
   };
 
   const handleSelectChat = (sessionId: string) => {
