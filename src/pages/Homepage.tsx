@@ -141,7 +141,7 @@ export default function Homepage() {
       {/* CTA Section */}
       <section className="py-20 px-6">
         <div className="max-w-3xl mx-auto text-center">
-          <img src={tokiLogo} alt="Toki" className="h-20 w-auto mx-auto mb-6" />
+          <img src={tokiLogo} alt="Toki" className="h-24 w-auto mx-auto mb-4" />
           <h2 className="text-3xl font-bold mb-4">Ready to Start Learning?</h2>
           <p className="text-muted-foreground mb-8">
             Join thousands of students who are already learning smarter with Toki.

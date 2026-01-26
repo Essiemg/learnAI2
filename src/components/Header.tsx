@@ -28,8 +28,8 @@ export function Header({ onNewChat, hasMessages }: HeaderProps) {
   return (
     <header className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/50 backdrop-blur-sm">
       {/* Logo */}
-      <Link to="/" className="flex items-center gap-2">
-        <img src={tokiLogo} alt="Toki" className="h-10 w-auto" />
+      <Link to="/" className="flex items-center">
+        <img src={tokiLogo} alt="Toki" className="h-12 w-auto" />
       </Link>
 
       {/* Controls */}
