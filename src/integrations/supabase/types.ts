@@ -332,6 +332,7 @@ export type Database = {
           file_size: number | null
           file_type: string
           id: string
+          source_url: string | null
           study_set_id: string | null
           user_id: string
         }
@@ -343,6 +344,7 @@ export type Database = {
           file_size?: number | null
           file_type: string
           id?: string
+          source_url?: string | null
           study_set_id?: string | null
           user_id: string
         }
@@ -354,6 +356,7 @@ export type Database = {
           file_size?: number | null
           file_type?: string
           id?: string
+          source_url?: string | null
           study_set_id?: string | null
           user_id?: string
         }
