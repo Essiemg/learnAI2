@@ -178,6 +178,128 @@ export type Database = {
         }
         Relationships: []
       }
+      learner_preferences: {
+        Row: {
+          average_confidence:
+            | Database["public"]["Enums"]["confidence_level"]
+            | null
+          average_explanation_depth: number | null
+          created_at: string
+          id: string
+          last_analyzed_at: string | null
+          preferred_style: Database["public"]["Enums"]["learning_style"] | null
+          prefers_analogies: boolean | null
+          prefers_examples: boolean | null
+          prefers_practice_problems: boolean | null
+          prefers_step_by_step: boolean | null
+          strong_topics: string[] | null
+          struggling_topics: string[] | null
+          total_interactions: number | null
+          total_topics_covered: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          average_confidence?:
+            | Database["public"]["Enums"]["confidence_level"]
+            | null
+          average_explanation_depth?: number | null
+          created_at?: string
+          id?: string
+          last_analyzed_at?: string | null
+          preferred_style?: Database["public"]["Enums"]["learning_style"] | null
+          prefers_analogies?: boolean | null
+          prefers_examples?: boolean | null
+          prefers_practice_problems?: boolean | null
+          prefers_step_by_step?: boolean | null
+          strong_topics?: string[] | null
+          struggling_topics?: string[] | null
+          total_interactions?: number | null
+          total_topics_covered?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          average_confidence?:
+            | Database["public"]["Enums"]["confidence_level"]
+            | null
+          average_explanation_depth?: number | null
+          created_at?: string
+          id?: string
+          last_analyzed_at?: string | null
+          preferred_style?: Database["public"]["Enums"]["learning_style"] | null
+          prefers_analogies?: boolean | null
+          prefers_examples?: boolean | null
+          prefers_practice_problems?: boolean | null
+          prefers_step_by_step?: boolean | null
+          strong_topics?: string[] | null
+          struggling_topics?: string[] | null
+          total_interactions?: number | null
+          total_topics_covered?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      learning_interactions: {
+        Row: {
+          confidence_indicator:
+            | Database["public"]["Enums"]["confidence_level"]
+            | null
+          created_at: string
+          explanation_count: number
+          follow_up_count: number
+          id: string
+          interaction_type: string
+          response_helpful: boolean | null
+          session_id: string | null
+          subject_id: string | null
+          time_spent_seconds: number | null
+          topic: string
+          user_id: string
+        }
+        Insert: {
+          confidence_indicator?:
+            | Database["public"]["Enums"]["confidence_level"]
+            | null
+          created_at?: string
+          explanation_count?: number
+          follow_up_count?: number
+          id?: string
+          interaction_type?: string
+          response_helpful?: boolean | null
+          session_id?: string | null
+          subject_id?: string | null
+          time_spent_seconds?: number | null
+          topic: string
+          user_id: string
+        }
+        Update: {
+          confidence_indicator?:
+            | Database["public"]["Enums"]["confidence_level"]
+            | null
+          created_at?: string
+          explanation_count?: number
+          follow_up_count?: number
+          id?: string
+          interaction_type?: string
+          response_helpful?: boolean | null
+          session_id?: string | null
+          subject_id?: string | null
+          time_spent_seconds?: number | null
+          topic?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "learning_interactions_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -349,6 +471,59 @@ export type Database = {
             columns: ["material_id"]
             isOneToOne: false
             referencedRelation: "uploaded_materials"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      topic_mastery: {
+        Row: {
+          created_at: string
+          id: string
+          last_confidence:
+            | Database["public"]["Enums"]["confidence_level"]
+            | null
+          mastery_level: number | null
+          subject_id: string | null
+          times_struggled: number | null
+          times_studied: number | null
+          topic: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_confidence?:
+            | Database["public"]["Enums"]["confidence_level"]
+            | null
+          mastery_level?: number | null
+          subject_id?: string | null
+          times_struggled?: number | null
+          times_studied?: number | null
+          topic: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_confidence?:
+            | Database["public"]["Enums"]["confidence_level"]
+            | null
+          mastery_level?: number | null
+          subject_id?: string | null
+          times_struggled?: number | null
+          times_studied?: number | null
+          topic?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "topic_mastery_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
             referencedColumns: ["id"]
           },
         ]
@@ -532,7 +707,19 @@ export type Database = {
       }
     }
     Enums: {
+      confidence_level:
+        | "confused"
+        | "uncertain"
+        | "neutral"
+        | "confident"
+        | "mastered"
       education_level: "primary" | "high_school" | "undergraduate"
+      learning_style:
+        | "step_by_step"
+        | "conceptual"
+        | "practice_oriented"
+        | "visual"
+        | "mixed"
       user_role: "child" | "parent" | "admin"
     }
     CompositeTypes: {
@@ -661,7 +848,21 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      confidence_level: [
+        "confused",
+        "uncertain",
+        "neutral",
+        "confident",
+        "mastered",
+      ],
       education_level: ["primary", "high_school", "undergraduate"],
+      learning_style: [
+        "step_by_step",
+        "conceptual",
+        "practice_oriented",
+        "visual",
+        "mixed",
+      ],
       user_role: ["child", "parent", "admin"],
     },
   },
