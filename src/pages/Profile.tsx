@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,9 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ArrowLeft, Loader2, LogOut, User, Shield, Users } from "lucide-react";
 import { toast } from "sonner";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { LinkToParent } from "@/components/profile/LinkToParent";
+import { supabase } from "@/integrations/supabase/client";
+import { useEducation } from "@/hooks/useEducation";
 
 const avatarColors = [
   "bg-red-500",
@@ -24,12 +27,21 @@ const avatarColors = [
 ];
 
 export default function Profile() {
-  const { profile, role, updateProfile, signOut, isLoading: authLoading } = useAuth();
+  const { profile, role, updateProfile, signOut, isLoading: authLoading, refreshProfile } = useAuth();
+  const { userEducation } = useEducation();
   const navigate = useNavigate();
   const [displayName, setDisplayName] = useState(profile?.display_name || "");
   const [gradeLevel, setGradeLevel] = useState(profile?.grade_level?.toString() || "");
   const [selectedColor, setSelectedColor] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
+  const [isLinkedToParent, setIsLinkedToParent] = useState(!!profile?.parent_id);
+
+  // Check if user is primary level (for showing parent link section)
+  const isPrimaryStudent = role === "child" && userEducation?.education_level === "primary";
+
+  useEffect(() => {
+    setIsLinkedToParent(!!profile?.parent_id);
+  }, [profile?.parent_id]);
 
   if (authLoading) {
     return (
@@ -179,6 +191,14 @@ export default function Profile() {
             </Button>
           </CardContent>
         </Card>
+
+        {/* Link to Parent - Only for Primary Students */}
+        {isPrimaryStudent && (
+          <LinkToParent
+            isLinked={isLinkedToParent}
+            onLinkSuccess={() => setIsLinkedToParent(true)}
+          />
+        )}
 
         {/* Sign Out */}
         <Button

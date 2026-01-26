@@ -1,41 +1,26 @@
 import { useAuth } from "@/contexts/AuthContext";
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import { ArrowLeft, Users, BookOpen, Clock, GraduationCap, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ArrowLeft, Users, Loader2, RefreshCw } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
-
-interface ChildProfile {
-  id: string;
-  display_name: string;
-  grade_level: number | null;
-  avatar_url: string | null;
-}
+import { useParentAnalytics } from "@/hooks/useParentAnalytics";
+import { LinkCodeGenerator } from "@/components/parent/LinkCodeGenerator";
+import { ChildLearningCard } from "@/components/parent/ChildLearningCard";
+import { LearningInsights } from "@/components/parent/LearningInsights";
 
 export default function ParentDashboard() {
   const { profile, role } = useAuth();
   const navigate = useNavigate();
-  const [children, setChildren] = useState<ChildProfile[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchChildren = async () => {
-      if (!profile?.id) return;
-
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, display_name, grade_level, avatar_url")
-        .eq("parent_id", profile.id);
-
-      setChildren(data || []);
-      setIsLoading(false);
-    };
-
-    fetchChildren();
-  }, [profile?.id]);
+  const { 
+    children, 
+    isLoading, 
+    linkCode, 
+    isGeneratingCode, 
+    generateLinkCode,
+    refreshAnalytics 
+  } = useParentAnalytics();
 
   if (role !== "parent" && role !== "admin") {
     navigate("/");
@@ -53,89 +38,125 @@ export default function ParentDashboard() {
         <ThemeToggle />
       </header>
 
-      <div className="p-4 max-w-2xl mx-auto space-y-6">
+      <div className="p-4 max-w-4xl mx-auto space-y-6">
         {/* Welcome */}
         <Card className="bg-gradient-to-br from-primary/10 to-accent/10 border-0">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5 text-primary" />
-              Welcome, {profile?.display_name}!
-            </CardTitle>
-            <CardDescription>
-              Monitor your children's learning progress and manage their accounts.
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5 text-primary" />
+                  Welcome, {profile?.display_name}!
+                </CardTitle>
+                <CardDescription>
+                  Monitor your children's learning progress and see where they might need extra help.
+                </CardDescription>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={refreshAnalytics}
+                disabled={isLoading}
+              >
+                <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+              </Button>
+            </div>
           </CardHeader>
         </Card>
 
-        {/* Children Overview */}
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <GraduationCap className="h-5 w-5" />
-            Your Children
-          </h2>
+        {/* Link Code Generator */}
+        <LinkCodeGenerator
+          linkCode={linkCode}
+          isGenerating={isGeneratingCode}
+          onGenerate={generateLinkCode}
+        />
 
-          {isLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          ) : children.length === 0 ? (
-            <Card>
-              <CardContent className="py-8 text-center text-muted-foreground">
-                <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>No children linked to your account yet.</p>
-                <p className="text-sm mt-2">
-                  Ask your children to sign up and link their account to yours.
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid gap-4">
+        {/* Loading State */}
+        {isLoading ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : children.length === 0 ? (
+          /* No Children State */
+          <Card>
+            <CardContent className="py-12 text-center">
+              <Users className="h-16 w-16 mx-auto mb-4 text-muted-foreground/50" />
+              <h3 className="text-lg font-semibold mb-2">No Primary Students Linked</h3>
+              <p className="text-muted-foreground max-w-md mx-auto">
+                Generate a link code above and share it with your primary school child. 
+                They'll enter it in their Profile settings to connect their account.
+              </p>
+              <p className="text-sm text-muted-foreground mt-4">
+                Note: This dashboard is designed for primary school students only.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          /* Children Analytics */
+          <Tabs defaultValue={children[0]?.profile.id} className="w-full">
+            <TabsList className="w-full justify-start overflow-x-auto">
               {children.map((child) => (
-                <Card key={child.id} className="card-interactive">
-                  <CardContent className="flex items-center gap-4 py-4">
-                    <Avatar className={`h-12 w-12 ${child.avatar_url || "bg-primary"} text-primary-foreground`}>
-                      <AvatarFallback className="bg-transparent text-lg">
-                        {child.display_name?.charAt(0).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1">
-                      <h3 className="font-semibold">{child.display_name}</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Grade {child.grade_level || "Not set"}
-                      </p>
-                    </div>
-                    <div className="text-right text-sm text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <BookOpen className="h-4 w-4" />
-                        <span>Active learner</span>
-                      </div>
-                      <div className="flex items-center gap-1 mt-1">
-                        <Clock className="h-4 w-4" />
-                        <span>Recently active</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                <TabsTrigger key={child.profile.id} value={child.profile.id}>
+                  {child.profile.display_name}
+                </TabsTrigger>
               ))}
-            </div>
-          )}
-        </div>
+            </TabsList>
 
-        {/* Quick Stats */}
-        <div className="grid grid-cols-2 gap-4">
-          <Card>
-            <CardContent className="py-4 text-center">
-              <div className="text-3xl font-bold text-primary">{children.length}</div>
-              <p className="text-sm text-muted-foreground">Children</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="py-4 text-center">
-              <div className="text-3xl font-bold text-success">🌟</div>
-              <p className="text-sm text-muted-foreground">Great Progress!</p>
-            </CardContent>
-          </Card>
-        </div>
+            {children.map((child) => (
+              <TabsContent key={child.profile.id} value={child.profile.id} className="mt-4">
+                <div className="grid gap-6 md:grid-cols-2">
+                  {/* Overview Card */}
+                  <ChildLearningCard
+                    profile={child.profile}
+                    topicMastery={child.topicMastery}
+                    weeklyStats={child.weeklyStats}
+                    strugglingTopics={child.preferences?.struggling_topics || []}
+                    strongTopics={child.preferences?.strong_topics || []}
+                  />
+
+                  {/* Insights */}
+                  <LearningInsights
+                    childName={child.profile.display_name}
+                    preferences={child.preferences}
+                    recentActivity={child.recentActivity}
+                  />
+                </div>
+
+                {/* Recommendations */}
+                {(child.preferences?.struggling_topics?.length ?? 0) > 0 && (
+                  <Card className="mt-6">
+                    <CardHeader>
+                      <CardTitle className="text-base">💡 Recommendations</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ul className="space-y-2 text-sm">
+                        {child.preferences?.struggling_topics?.slice(0, 3).map((topic) => (
+                          <li key={topic} className="flex items-start gap-2">
+                            <span className="text-primary mt-0.5">•</span>
+                            <span>
+                              <strong>{child.profile.display_name}</strong> might benefit from 
+                              extra practice with <strong>{topic}</strong>. Consider reviewing 
+                              this topic together.
+                            </span>
+                          </li>
+                        ))}
+                        {child.weeklyStats.totalInteractions < 5 && (
+                          <li className="flex items-start gap-2">
+                            <span className="text-primary mt-0.5">•</span>
+                            <span>
+                              {child.profile.display_name} hasn't been very active this week. 
+                              Encourage them to explore new topics!
+                            </span>
+                          </li>
+                        )}
+                      </ul>
+                    </CardContent>
+                  </Card>
+                )}
+              </TabsContent>
+            ))}
+          </Tabs>
+        )}
       </div>
     </div>
   );
