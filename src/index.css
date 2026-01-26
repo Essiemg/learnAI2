@@ -125,8 +125,13 @@
   }
 
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply bg-background text-foreground antialiased font-sans;
     font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Eph-inspired typography: Slab for headings, Sans for body */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-slab font-semibold tracking-tight;
   }
 
   /* Smooth scrolling */
