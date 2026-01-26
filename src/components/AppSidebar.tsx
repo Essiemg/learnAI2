@@ -66,11 +66,11 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" className="border-r border-border">
       <SidebarHeader className="border-b border-border">
-        <div className="flex items-center justify-center px-2 py-3">
+        <div className="flex items-center justify-center px-2 py-2">
           <img 
             src={tokiLogo} 
             alt="Toki" 
-            className={collapsed ? "h-8 w-auto" : "h-10 w-auto"} 
+            className={collapsed ? "h-8 w-auto" : "h-12 w-auto"} 
           />
         </div>
       </SidebarHeader>
