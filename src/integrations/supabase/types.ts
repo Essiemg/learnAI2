@@ -300,6 +300,33 @@ export type Database = {
           },
         ]
       }
+      parent_link_codes: {
+        Row: {
+          code: string
+          created_at: string
+          expires_at: string
+          id: string
+          parent_user_id: string
+          used_at: string | null
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          parent_user_id: string
+          used_at?: string | null
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          parent_user_id?: string
+          used_at?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -690,6 +717,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_parent_link_code: { Args: never; Returns: string }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["user_role"]
@@ -705,6 +733,7 @@ export type Database = {
         Args: { _child_profile_id: string; _parent_user_id: string }
         Returns: boolean
       }
+      link_child_to_parent: { Args: { link_code: string }; Returns: boolean }
     }
     Enums: {
       confidence_level:
