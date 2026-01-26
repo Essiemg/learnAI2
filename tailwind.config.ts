@@ -72,14 +72,19 @@ export default {
         sm: "calc(var(--radius) - 4px)",
       },
       fontFamily: {
+        // Eph-inspired font system
+        slab: [
+          "Rokkitt",
+          "Rockwell",
+          "Georgia",
+          "serif",
+        ],
         sans: [
+          "Source Sans 3",
           "system-ui",
           "-apple-system",
           "BlinkMacSystemFont",
           "Segoe UI",
-          "Roboto",
-          "Helvetica Neue",
-          "Arial",
           "sans-serif",
         ],
       },
