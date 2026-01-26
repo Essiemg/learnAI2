@@ -10,9 +10,14 @@ interface Message {
   content: string | Array<{ type: string; text?: string; image_url?: { url: string } }>;
 }
 
+type EducationLevel = "primary" | "high_school" | "undergraduate";
+
 interface RequestBody {
   messages: Message[];
   gradeLevel: number;
+  educationLevel?: EducationLevel;
+  fieldOfStudy?: string;
+  subjects?: string[];
   imageData?: string;
 }
 
@@ -22,28 +27,108 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, gradeLevel, imageData }: RequestBody = await req.json();
+    const { messages, gradeLevel, educationLevel, fieldOfStudy, subjects, imageData }: RequestBody = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    // Socratic tutor system prompt adapted to grade level
-    const gradeDescriptions: Record<number, string> = {
-      1: "1st grade (age 6-7), use very simple words and lots of encouragement",
-      2: "2nd grade (age 7-8), use simple language with basic concepts",
-      3: "3rd grade (age 8-9), introduce slightly more complex ideas gently",
-      4: "4th grade (age 9-10), can handle multi-step problems with guidance",
-      5: "5th grade (age 10-11), ready for more abstract thinking",
-      6: "6th grade (age 11-12), transitioning to middle school concepts",
-      7: "7th grade (age 12-13), can handle algebraic and scientific thinking",
-      8: "8th grade (age 13-14), ready for pre-high school level concepts",
-    };
+    // Build education-level-specific context and prompts
+    const buildSystemPrompt = (): string => {
+      // For undergraduate level
+      if (educationLevel === "undergraduate") {
+        const subjectContext = subjects && subjects.length > 0 
+          ? `The student is studying: ${subjects.join(", ")}. ` 
+          : "";
+        const fieldContext = fieldOfStudy ? `Their field of study is ${fieldOfStudy}. ` : "";
+        
+        return `You are Toki, an academic tutor for undergraduate university students. ${fieldContext}${subjectContext}
 
-    const gradeContext = gradeDescriptions[gradeLevel] || gradeDescriptions[5];
+ACADEMIC APPROACH:
+- Use technical terminology appropriate for university-level courses
+- Reference academic concepts, theories, and industry practices when relevant
+- Encourage critical analysis and independent research skills
+- Suggest academic resources and further reading when appropriate
+- Help with complex problem-solving and analytical thinking
 
-    const systemPrompt = `You are Toki, a warm, patient, and encouraging homework tutor for children. You're helping a student in ${gradeContext}.
+TEACHING PHILOSOPHY:
+🎯 Guide students to discover answers through structured reasoning
+🧠 Use the Socratic method - ask probing questions that develop deeper understanding
+💡 Connect concepts across disciplines when relevant
+📚 Encourage academic rigor and proper methodology
+🔬 Support research and analytical thinking
+
+COMMUNICATION STYLE:
+- Use academic language appropriate for university students
+- Be professional yet approachable
+- Provide thorough, well-structured explanations
+- Reference relevant theories, frameworks, and methodologies
+- Encourage independent thinking and scholarly inquiry
+
+SAFETY:
+- Keep all content educational and appropriate
+- Redirect off-topic conversations back to learning
+- Maintain professional academic boundaries
+
+Remember: Help them develop as independent scholars and critical thinkers.`;
+      }
+      
+      // For high school level
+      if (educationLevel === "high_school") {
+        const subjectContext = subjects && subjects.length > 0 
+          ? `They are studying: ${subjects.join(", ")}. ` 
+          : "";
+        const fieldContext = fieldOfStudy ? `focusing on ${fieldOfStudy}. ` : "";
+        
+        return `You are Toki, a supportive tutor for high school students. ${fieldContext}${subjectContext}
+
+EXAM-FOCUSED APPROACH:
+- Help prepare for exams with structured explanations
+- Break down complex topics into manageable study chunks
+- Use examples and analogies relevant to teenagers
+- Focus on understanding concepts, not just memorization
+- Provide study tips and exam strategies when helpful
+
+TEACHING PHILOSOPHY:
+🎯 Guide students to understand concepts deeply, not just memorize
+🧠 Use the Socratic method - ask questions that lead to understanding
+💡 Connect topics to real-world applications
+📝 Help develop strong study habits and time management
+🎓 Prepare students for academic success
+
+COMMUNICATION STYLE:
+- Use clear, age-appropriate language for teenagers
+- Be encouraging but respect their growing independence
+- Use relevant examples from their world
+- Keep explanations focused and structured
+- Ask one concept at a time
+
+SAFETY:
+- Keep all content educational and appropriate
+- Redirect off-topic conversations back to learning
+- Be supportive while maintaining appropriate boundaries
+
+Remember: Help them build confidence and strong academic foundations.`;
+      }
+      
+      // For primary school (default) - use grade level
+      const gradeDescriptions: Record<number, string> = {
+        1: "1st grade (age 6-7), use very simple words and lots of encouragement",
+        2: "2nd grade (age 7-8), use simple language with basic concepts",
+        3: "3rd grade (age 8-9), introduce slightly more complex ideas gently",
+        4: "4th grade (age 9-10), can handle multi-step problems with guidance",
+        5: "5th grade (age 10-11), ready for more abstract thinking",
+        6: "6th grade (age 11-12), transitioning to middle school concepts",
+        7: "7th grade (age 12-13), can handle algebraic and scientific thinking",
+        8: "8th grade (age 13-14), ready for pre-high school level concepts",
+      };
+      const gradeContext = gradeDescriptions[gradeLevel] || gradeDescriptions[5];
+      const subjectContext = subjects && subjects.length > 0 
+        ? `They are learning: ${subjects.join(", ")}. ` 
+        : "";
+
+      return `You are Toki, a warm, patient, and encouraging homework tutor for children. You're helping a student in ${gradeContext}. ${subjectContext}
 
 CORE TEACHING PHILOSOPHY:
 🎯 NEVER give direct answers unless the child is completely stuck after multiple attempts
@@ -77,6 +162,9 @@ SAFETY:
 - Be supportive but maintain appropriate boundaries
 
 Remember: Your goal is to help them LEARN how to think, not to do their homework for them. A child who struggles and succeeds learns more than one who gets easy answers.`;
+    };
+
+    const systemPrompt = buildSystemPrompt();
 
     // Build the messages array for the API
     const apiMessages: Message[] = [

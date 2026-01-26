@@ -9,6 +9,7 @@ import { MaterialSelector } from "@/components/MaterialSelector";
 import { useTopic } from "@/contexts/TopicContext";
 import { useUser } from "@/contexts/UserContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useEducationContext } from "@/contexts/EducationContext";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -34,6 +35,7 @@ export default function Flashcards() {
   const { currentTopic } = useTopic();
   const { gradeLevel } = useUser();
   const { user, profile } = useAuth();
+  const { userEducation, userSubjects } = useEducationContext();
   const [cards, setCards] = useState<Flashcard[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -54,6 +56,7 @@ export default function Flashcards() {
   } = useFlashcardHistory();
 
   const effectiveGradeLevel = profile?.grade_level || gradeLevel;
+  const subjectNames = userSubjects.map(s => s.name);
 
   useEffect(() => {
     if (user && cards.length > 0 && currentSessionTopic) {
@@ -82,6 +85,9 @@ export default function Flashcards() {
             fileType: selectedMaterials[0].type,
             topic: currentTopic?.name,
             gradeLevel: effectiveGradeLevel,
+            educationLevel: userEducation?.education_level,
+            fieldOfStudy: userEducation?.field_of_study,
+            subjects: subjectNames,
             count: parseInt(count),
             difficulty,
           },
@@ -94,6 +100,9 @@ export default function Flashcards() {
             type: "flashcards",
             topic: currentTopic?.name,
             gradeLevel: effectiveGradeLevel,
+            educationLevel: userEducation?.education_level,
+            fieldOfStudy: userEducation?.field_of_study,
+            subjects: subjectNames,
             count: parseInt(count),
             difficulty,
           },

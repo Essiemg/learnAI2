@@ -1,9 +1,18 @@
 import { useState, useCallback, useRef } from "react";
 import { Message, ChatState } from "@/types/chat";
+import type { EducationLevel } from "@/types/education";
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/tutor-chat`;
 
-export function useChat(gradeLevel: number) {
+interface UseChatOptions {
+  gradeLevel: number;
+  educationLevel?: EducationLevel;
+  fieldOfStudy?: string | null;
+  subjects?: string[];
+}
+
+export function useChat(options: UseChatOptions) {
+  const { gradeLevel, educationLevel, fieldOfStudy, subjects } = options;
   const [state, setState] = useState<ChatState>({
     messages: [],
     isLoading: false,
@@ -47,11 +56,14 @@ export function useChat(gradeLevel: number) {
             "Content-Type": "application/json",
             Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
           },
-          body: JSON.stringify({
-            messages: apiMessages,
-            gradeLevel,
-            imageData,
-          }),
+        body: JSON.stringify({
+          messages: apiMessages,
+          gradeLevel,
+          educationLevel,
+          fieldOfStudy,
+          subjects,
+          imageData,
+        }),
           signal: abortControllerRef.current.signal,
         });
 
@@ -138,7 +150,7 @@ export function useChat(gradeLevel: number) {
         }));
       }
     },
-    [gradeLevel, state.messages]
+    [gradeLevel, educationLevel, fieldOfStudy, subjects, state.messages]
   );
 
   const clearMessages = useCallback(() => {

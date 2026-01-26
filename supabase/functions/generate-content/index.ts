@@ -5,10 +5,15 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+type EducationLevel = "primary" | "high_school" | "undergraduate";
+
 interface RequestBody {
   type: "flashcards" | "quiz" | "summary" | "diagram";
   topic?: string;
   gradeLevel?: number;
+  educationLevel?: EducationLevel;
+  fieldOfStudy?: string;
+  subjects?: string[];
   count?: number;
   difficulty?: "easy" | "medium" | "hard";
   content?: string;
@@ -23,7 +28,7 @@ serve(async (req) => {
 
   try {
     const body: RequestBody = await req.json();
-    const { type, topic, gradeLevel = 5, count = 5, difficulty = "medium", content, isBase64, diagramType = "flowchart" } = body;
+    const { type, topic, gradeLevel = 5, educationLevel, fieldOfStudy, subjects, count = 5, difficulty = "medium", content, isBase64, diagramType = "flowchart" } = body;
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
     if (!LOVABLE_API_KEY) {
@@ -36,18 +41,36 @@ serve(async (req) => {
       hard: "challenging, requiring deeper understanding and analysis",
     };
 
-    const gradeDescriptions: Record<number, string> = {
-      1: "1st grade (age 6-7)",
-      2: "2nd grade (age 7-8)",
-      3: "3rd grade (age 8-9)",
-      4: "4th grade (age 9-10)",
-      5: "5th grade (age 10-11)",
-      6: "6th grade (age 11-12)",
-      7: "7th grade (age 12-13)",
-      8: "8th grade (age 13-14)",
+    // Build education context based on level
+    const getEducationContext = (): string => {
+      if (educationLevel === "undergraduate") {
+        const fieldContext = fieldOfStudy ? ` studying ${fieldOfStudy}` : "";
+        const subjectContext = subjects && subjects.length > 0 ? ` focusing on ${subjects.join(", ")}` : "";
+        return `an undergraduate university student${fieldContext}${subjectContext}. Use academic terminology and complex concepts appropriate for higher education`;
+      }
+      
+      if (educationLevel === "high_school") {
+        const fieldContext = fieldOfStudy ? ` in the ${fieldOfStudy} track` : "";
+        const subjectContext = subjects && subjects.length > 0 ? ` studying ${subjects.join(", ")}` : "";
+        return `a high school student${fieldContext}${subjectContext}. Use clear explanations with some technical terms, appropriate for teenage learners preparing for exams`;
+      }
+      
+      // Primary school - use grade level
+      const gradeDescriptions: Record<number, string> = {
+        1: "1st grade (age 6-7)",
+        2: "2nd grade (age 7-8)",
+        3: "3rd grade (age 8-9)",
+        4: "4th grade (age 9-10)",
+        5: "5th grade (age 10-11)",
+        6: "6th grade (age 11-12)",
+        7: "7th grade (age 12-13)",
+        8: "8th grade (age 13-14)",
+      };
+      const subjectContext = subjects && subjects.length > 0 ? ` learning ${subjects.join(", ")}` : "";
+      return `a ${gradeDescriptions[gradeLevel] || gradeDescriptions[5]} student${subjectContext}. Use simple, child-friendly language with encouragement`;
     };
 
-    const gradeContext = gradeDescriptions[gradeLevel] || gradeDescriptions[5];
+    const educationContext = getEducationContext();
 
     let systemPrompt: string;
     let userPrompt: string;
@@ -211,9 +234,9 @@ Remember: Return ONLY the Mermaid code, no explanations or markdown.`;
 
     // Flashcards and Quiz generation
     if (type === "flashcards") {
-      systemPrompt = `You are an educational content creator specializing in creating ${difficultyDescriptions[difficulty]} flashcards for children. Create age-appropriate, engaging flashcards for ${gradeContext} students.`;
+      systemPrompt = `You are an educational content creator specializing in creating ${difficultyDescriptions[difficulty]} flashcards. Create appropriate, engaging flashcards for ${educationContext}.`;
       
-      userPrompt = `Create ${count} ${difficulty} educational flashcards about "${topic}" for ${gradeContext} students. Make them engaging and appropriate for the age level.`;
+      userPrompt = `Create ${count} ${difficulty} educational flashcards about "${topic}" for ${educationContext}. Make them engaging and appropriate for the education level.`;
       
       tools = [
         {
@@ -251,9 +274,9 @@ Remember: Return ONLY the Mermaid code, no explanations or markdown.`;
       ];
       toolChoice = { type: "function", function: { name: "create_flashcards" } };
     } else if (type === "quiz") {
-      systemPrompt = `You are an educational content creator specializing in creating ${difficultyDescriptions[difficulty]} quizzes for children. Create age-appropriate, engaging multiple choice quizzes for ${gradeContext} students.`;
+      systemPrompt = `You are an educational content creator specializing in creating ${difficultyDescriptions[difficulty]} quizzes. Create appropriate, engaging multiple choice quizzes for ${educationContext}.`;
       
-      userPrompt = `Create a ${count}-question ${difficulty} multiple choice quiz about "${topic}" for ${gradeContext} students. Make the questions engaging and educational. Each question should have exactly 4 options with only one correct answer.`;
+      userPrompt = `Create a ${count}-question ${difficulty} multiple choice quiz about "${topic}" for ${educationContext}. Make the questions engaging and educational. Each question should have exactly 4 options with only one correct answer.`;
       
       tools = [
         {

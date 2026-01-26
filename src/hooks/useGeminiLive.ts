@@ -1,9 +1,13 @@
 import { useState, useCallback, useRef, useEffect } from "react";
+import type { EducationLevel } from "@/types/education";
 
 const SUPABASE_PROJECT_ID = import.meta.env.VITE_SUPABASE_PROJECT_ID;
 
 interface UseGeminiLiveOptions {
   gradeLevel: number;
+  educationLevel?: EducationLevel;
+  fieldOfStudy?: string | null;
+  subjects?: string[];
   onTranscript?: (text: string, isUser: boolean) => void;
   onError?: (error: string) => void;
 }
@@ -12,7 +16,14 @@ interface AudioQueueItem {
   data: Uint8Array;
 }
 
-export function useGeminiLive({ gradeLevel, onTranscript, onError }: UseGeminiLiveOptions) {
+export function useGeminiLive({ 
+  gradeLevel, 
+  educationLevel, 
+  fieldOfStudy, 
+  subjects, 
+  onTranscript, 
+  onError 
+}: UseGeminiLiveOptions) {
   const [isConnected, setIsConnected] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -205,7 +216,13 @@ export function useGeminiLive({ gradeLevel, onTranscript, onError }: UseGeminiLi
 
     setIsProcessing(true);
 
-    const wsUrl = `wss://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/gemini-live?gradeLevel=${gradeLevel}`;
+    // Build URL with education context
+    const params = new URLSearchParams({ gradeLevel: String(gradeLevel) });
+    if (educationLevel) params.append("educationLevel", educationLevel);
+    if (fieldOfStudy) params.append("fieldOfStudy", fieldOfStudy);
+    if (subjects && subjects.length > 0) params.append("subjects", subjects.join(","));
+
+    const wsUrl = `wss://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/gemini-live?${params.toString()}`;
     console.log("Connecting to:", wsUrl);
 
     const ws = new WebSocket(wsUrl);
@@ -266,7 +283,7 @@ export function useGeminiLive({ gradeLevel, onTranscript, onError }: UseGeminiLi
       setIsProcessing(false);
       stopMicrophone();
     };
-  }, [gradeLevel, onError, onTranscript, queueAudio, startMicrophone, stopMicrophone]);
+  }, [gradeLevel, educationLevel, fieldOfStudy, subjects, onError, onTranscript, queueAudio, startMicrophone, stopMicrophone]);
 
   // Disconnect from Gemini Live
   const disconnect = useCallback(() => {

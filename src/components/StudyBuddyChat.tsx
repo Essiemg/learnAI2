@@ -1,5 +1,6 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useUser } from "@/contexts/UserContext";
+import { useEducationContext } from "@/contexts/EducationContext";
 import { useChat } from "@/hooks/useChat";
 import { useChatHistory } from "@/hooks/useChatHistory";
 import { useGeminiLive } from "@/hooks/useGeminiLive";
@@ -17,6 +18,7 @@ import { Users, Shield, LogIn } from "lucide-react";
 export function StudyBuddyChat() {
   const { user, profile, role, isLoading: authLoading } = useAuth();
   const { gradeLevel, setGradeLevel } = useUser();
+  const { userEducation, userSubjects } = useEducationContext();
   const navigate = useNavigate();
 
   // Sync grade level from profile
@@ -28,7 +30,16 @@ export function StudyBuddyChat() {
 
   // Default to grade 5 if not set to prevent blocking input
   const effectiveGradeLevel = profile?.grade_level || gradeLevel || 5;
-  const { messages, isLoading, error, sendMessage, clearMessages, setMessages } = useChat(effectiveGradeLevel);
+  
+  // Build education context for personalized AI
+  const subjectNames = userSubjects.map(s => s.name);
+  
+  const { messages, isLoading, error, sendMessage, clearMessages, setMessages } = useChat({
+    gradeLevel: effectiveGradeLevel,
+    educationLevel: userEducation?.education_level,
+    fieldOfStudy: userEducation?.field_of_study,
+    subjects: subjectNames,
+  });
 
   const {
     sessions,
@@ -65,6 +76,9 @@ export function StudyBuddyChat() {
     toggle: toggleLiveMode,
   } = useGeminiLive({
     gradeLevel: effectiveGradeLevel,
+    educationLevel: userEducation?.education_level,
+    fieldOfStudy: userEducation?.field_of_study,
+    subjects: subjectNames,
     onTranscript: handleGeminiTranscript,
     onError: handleGeminiError,
   });

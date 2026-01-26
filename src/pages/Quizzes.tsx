@@ -11,6 +11,7 @@ import { MaterialSelector } from "@/components/MaterialSelector";
 import { useTopic } from "@/contexts/TopicContext";
 import { useUser } from "@/contexts/UserContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useEducationContext } from "@/contexts/EducationContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -47,6 +48,7 @@ export default function Quizzes() {
   const { currentTopic } = useTopic();
   const { gradeLevel } = useUser();
   const { user, profile } = useAuth();
+  const { userEducation, userSubjects } = useEducationContext();
   const [quiz, setQuiz] = useState<QuizState | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
@@ -65,6 +67,7 @@ export default function Quizzes() {
   } = useQuizHistory();
 
   const effectiveGradeLevel = profile?.grade_level || gradeLevel;
+  const subjectNames = userSubjects.map(s => s.name);
 
   const generateQuiz = async () => {
     if (!currentTopic && selectedMaterials.length === 0) {
@@ -84,6 +87,9 @@ export default function Quizzes() {
             fileType: selectedMaterials[0].type,
             topic: currentTopic?.name,
             gradeLevel: effectiveGradeLevel,
+            educationLevel: userEducation?.education_level,
+            fieldOfStudy: userEducation?.field_of_study,
+            subjects: subjectNames,
             count: parseInt(count),
             difficulty,
           },
@@ -96,6 +102,9 @@ export default function Quizzes() {
             type: "quiz",
             topic: currentTopic?.name,
             gradeLevel: effectiveGradeLevel,
+            educationLevel: userEducation?.education_level,
+            fieldOfStudy: userEducation?.field_of_study,
+            subjects: subjectNames,
             count: parseInt(count),
             difficulty,
           },

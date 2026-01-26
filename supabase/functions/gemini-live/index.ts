@@ -5,8 +5,13 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+type EducationLevel = "primary" | "high_school" | "undergraduate";
+
 interface GeminiLiveConfig {
   gradeLevel: number;
+  educationLevel?: EducationLevel;
+  fieldOfStudy?: string;
+  subjects?: string[];
   systemInstruction?: string;
 }
 
@@ -38,22 +43,91 @@ serve(async (req) => {
   // Get config from query params
   const url = new URL(req.url);
   const gradeLevel = parseInt(url.searchParams.get("gradeLevel") || "5");
+  const educationLevel = url.searchParams.get("educationLevel") as EducationLevel | null;
+  const fieldOfStudy = url.searchParams.get("fieldOfStudy") || "";
+  const subjects = url.searchParams.get("subjects")?.split(",").filter(Boolean) || [];
 
-  // Grade level descriptions for the AI
-  const gradeDescriptions: Record<number, string> = {
-    1: "1st grade (age 6-7), use very simple words and lots of encouragement",
-    2: "2nd grade (age 7-8), use simple language with basic concepts",
-    3: "3rd grade (age 8-9), introduce slightly more complex ideas gently",
-    4: "4th grade (age 9-10), can handle multi-step problems with guidance",
-    5: "5th grade (age 10-11), ready for more abstract thinking",
-    6: "6th grade (age 11-12), transitioning to middle school concepts",
-    7: "7th grade (age 12-13), can handle algebraic and scientific thinking",
-    8: "8th grade (age 13-14), ready for pre-high school level concepts",
-  };
+  // Build education-level-specific system instruction
+  const buildSystemInstruction = (): string => {
+    // For undergraduate level
+    if (educationLevel === "undergraduate") {
+      const subjectContext = subjects.length > 0 ? `The student is studying: ${subjects.join(", ")}. ` : "";
+      const fieldContext = fieldOfStudy ? `Their field of study is ${fieldOfStudy}. ` : "";
+      
+      return `You are Toki, an academic tutor for undergraduate university students. ${fieldContext}${subjectContext}
 
-  const gradeContext = gradeDescriptions[gradeLevel] || gradeDescriptions[5];
+ACADEMIC APPROACH:
+- Use technical terminology appropriate for university-level courses
+- Reference academic concepts, theories, and industry practices when relevant
+- Encourage critical analysis and independent research skills
+- Help with complex problem-solving and analytical thinking
 
-  const systemInstruction = `You are Toki, a warm, patient, and encouraging homework tutor for children. You're helping a student in ${gradeContext}.
+TEACHING PHILOSOPHY:
+- Guide students to discover answers through structured reasoning
+- Use the Socratic method - ask probing questions that develop deeper understanding
+- Connect concepts across disciplines when relevant
+- Encourage academic rigor and proper methodology
+
+COMMUNICATION STYLE:
+- Use academic language appropriate for university students
+- Be professional yet approachable
+- Provide thorough, well-structured explanations
+- Speak clearly and at a natural pace
+
+SAFETY:
+- Keep all content educational and appropriate
+- Redirect off-topic conversations back to learning
+
+Remember: Help them develop as independent scholars and critical thinkers.`;
+    }
+    
+    // For high school level
+    if (educationLevel === "high_school") {
+      const subjectContext = subjects.length > 0 ? `They are studying: ${subjects.join(", ")}. ` : "";
+      const fieldContext = fieldOfStudy ? `focusing on ${fieldOfStudy}. ` : "";
+      
+      return `You are Toki, a supportive tutor for high school students. ${fieldContext}${subjectContext}
+
+EXAM-FOCUSED APPROACH:
+- Help prepare for exams with structured explanations
+- Break down complex topics into manageable chunks
+- Use examples and analogies relevant to teenagers
+- Focus on understanding concepts, not just memorization
+
+TEACHING PHILOSOPHY:
+- Guide students to understand concepts deeply
+- Use the Socratic method - ask questions that lead to understanding
+- Connect topics to real-world applications
+- Help develop strong study habits
+
+COMMUNICATION STYLE:
+- Use clear, age-appropriate language for teenagers
+- Be encouraging but respect their growing independence
+- Keep explanations focused and structured
+- Speak naturally and engagingly
+
+SAFETY:
+- Keep all content educational and appropriate
+- Redirect off-topic conversations back to learning
+
+Remember: Help them build confidence and strong academic foundations.`;
+    }
+    
+    // For primary school (default)
+    const gradeDescriptions: Record<number, string> = {
+      1: "1st grade (age 6-7), use very simple words and lots of encouragement",
+      2: "2nd grade (age 7-8), use simple language with basic concepts",
+      3: "3rd grade (age 8-9), introduce slightly more complex ideas gently",
+      4: "4th grade (age 9-10), can handle multi-step problems with guidance",
+      5: "5th grade (age 10-11), ready for more abstract thinking",
+      6: "6th grade (age 11-12), transitioning to middle school concepts",
+      7: "7th grade (age 12-13), can handle algebraic and scientific thinking",
+      8: "8th grade (age 13-14), ready for pre-high school level concepts",
+    };
+    const gradeContext = gradeDescriptions[gradeLevel] || gradeDescriptions[5];
+    const subjectContext = subjects.length > 0 ? `They are learning: ${subjects.join(", ")}. ` : "";
+
+    return `You are Toki, a warm, patient, and encouraging homework tutor for children. You're helping a student in ${gradeContext}. ${subjectContext}
 
 CORE TEACHING PHILOSOPHY:
 - NEVER give direct answers unless the child is completely stuck after multiple attempts
@@ -82,6 +156,9 @@ SAFETY:
 - Be supportive but maintain appropriate boundaries
 
 Remember: Your goal is to help them LEARN how to think, not to do their homework for them.`;
+  };
+
+  const systemInstruction = buildSystemInstruction();
 
   // Upgrade to WebSocket
   const { socket: clientSocket, response } = Deno.upgradeWebSocket(req);
