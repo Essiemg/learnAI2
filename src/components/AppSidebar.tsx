@@ -18,7 +18,7 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { BookOpen } from "lucide-react";
+import tokiLogo from "@/assets/toki-logo.png";
 
 const mainNavItems = [
   { title: "Homepage", url: "/", icon: Home },
@@ -66,16 +66,12 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" className="border-r border-border">
       <SidebarHeader className="border-b border-border">
-        <div className="flex items-center gap-2 px-2 py-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shrink-0">
-            <BookOpen className="h-5 w-5 text-primary-foreground" />
-          </div>
-          {!collapsed && (
-            <div className="flex flex-col">
-              <span className="font-bold text-lg leading-tight">Toki</span>
-              <span className="text-xs text-muted-foreground leading-tight">Your AI Tutor</span>
-            </div>
-          )}
+        <div className="flex items-center justify-center px-2 py-3">
+          <img 
+            src={tokiLogo} 
+            alt="Toki" 
+            className={collapsed ? "h-8 w-auto" : "h-10 w-auto"} 
+          />
         </div>
       </SidebarHeader>
 
