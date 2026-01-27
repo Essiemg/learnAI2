@@ -1,7 +1,7 @@
-import { StudyBuddyChat } from "@/components/StudyBuddyChat";
+import { TokiChat } from "@/components/TokiChat";
 
 const Index = () => {
-  return <StudyBuddyChat />;
+  return <TokiChat />;
 };
 
 export default Index;

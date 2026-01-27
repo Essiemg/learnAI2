@@ -16,7 +16,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Users, Shield, LogIn } from "lucide-react";
 
-export function StudyBuddyChat() {
+export function TokiChat() {
   const { user, profile, role, isLoading: authLoading } = useAuth();
   const { gradeLevel, setGradeLevel } = useUser();
   const { userEducation, userSubjects } = useEducationContext();
@@ -162,7 +162,7 @@ export function StudyBuddyChat() {
         <Header onNewChat={handleNewChat} hasMessages={false} />
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="text-center max-w-md">
-            <h2 className="text-2xl font-bold mb-4">Welcome to StudyBuddy!</h2>
+            <h2 className="text-2xl font-bold mb-4">Welcome to Toki!</h2>
             <p className="text-muted-foreground mb-6">
               Sign in to start learning with your personal tutor.
             </p>

@@ -18,7 +18,6 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
-import tokiLogo from "@/assets/toki-logo.png";
 
 const mainNavItems = [
   { title: "Homepage", url: "/", icon: Home },
@@ -66,12 +65,10 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" className="border-r border-border">
       <SidebarHeader className="border-b border-border">
-        <div className="flex items-center justify-center px-2 py-2">
-          <img 
-            src={tokiLogo} 
-            alt="Toki" 
-            className={collapsed ? "h-8 w-auto" : "h-12 w-auto"} 
-          />
+        <div className="flex items-center justify-center px-2 py-3">
+          <span className={`font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent ${collapsed ? "text-lg" : "text-2xl"}`}>
+            Toki
+          </span>
         </div>
       </SidebarHeader>
 
