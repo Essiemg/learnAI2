@@ -260,7 +260,7 @@ export function ChatInput({ onSend, isLoading, disabled }: ChatInputProps) {
       </div>
 
       <p className="text-center text-xs text-muted-foreground mt-2">
-        StudyBuddy helps you learn — it won't just give you the answers!
+        Toki helps you learn — it won't just give you the answers!
       </p>
     </div>
   );

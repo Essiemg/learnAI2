@@ -1,5 +1,5 @@
-import { StudyBuddyChat } from "@/components/StudyBuddyChat";
+import { TokiChat } from "@/components/TokiChat";
 
 export default function AITutor() {
-  return <StudyBuddyChat />;
+  return <TokiChat />;
 }

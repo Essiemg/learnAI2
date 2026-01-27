@@ -72,15 +72,14 @@ export default {
         sm: "calc(var(--radius) - 4px)",
       },
       fontFamily: {
-        // Eph-inspired font system
-        slab: [
-          "Rokkitt",
-          "Rockwell",
-          "Georgia",
-          "serif",
+        // Toki font system - Nunito for playful, friendly feel
+        display: [
+          "Nunito",
+          "system-ui",
+          "sans-serif",
         ],
         sans: [
-          "Source Sans 3",
+          "Nunito",
           "system-ui",
           "-apple-system",
           "BlinkMacSystemFont",
