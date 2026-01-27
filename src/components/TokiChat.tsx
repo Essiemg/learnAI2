@@ -60,6 +60,7 @@ export function TokiChat() {
     fieldOfStudy: userEducation?.field_of_study,
     subjects: subjectNames,
     learnerProfile,
+    userName: profile?.display_name,
     onInteraction: handleInteraction,
   });
 

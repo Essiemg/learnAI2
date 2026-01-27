@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Loader2, User, Shield, Users } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { ArrowLeft, Loader2, User, Shield, Users, Mail, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useEducation } from "@/hooks/useEducation";
@@ -13,7 +13,7 @@ import { PreferencesSection } from "@/components/profile/PreferencesSection";
 import { LinkToParent } from "@/components/profile/LinkToParent";
 
 export default function Profile() {
-  const { profile, role, updateProfile, signOut, isLoading: authLoading } = useAuth();
+  const { user, profile, role, updateProfile, signOut, isLoading: authLoading } = useAuth();
   const { userEducation } = useEducation();
   const navigate = useNavigate();
   
@@ -32,7 +32,6 @@ export default function Profile() {
       setGradeLevel(profile.grade_level?.toString() || "");
       setIsLinkedToParent(!!profile.parent_id);
       
-      // Find the color index from avatar_url
       const colorIndex = avatarColors.findIndex(c => c === profile.avatar_url);
       if (colorIndex !== -1) setSelectedColor(colorIndex);
     }
@@ -119,28 +118,54 @@ export default function Profile() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="flex items-center gap-4 px-4 py-3 border-b border-border">
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
-          <ArrowLeft className="h-5 w-5" />
+      <header className="flex items-center justify-between px-4 py-3 border-b border-border">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <h1 className="font-semibold">Profile & Settings</h1>
+        </div>
+        <Button 
+          variant="outline" 
+          size="sm"
+          onClick={() => setActiveSection("settings")}
+          className="gap-2"
+        >
+          <Settings className="h-4 w-4" />
+          Settings
         </Button>
-        <h1 className="font-semibold">Profile & Settings</h1>
       </header>
 
       <div className="flex flex-col md:flex-row max-w-5xl mx-auto p-4 gap-6">
         {/* Sidebar */}
-        <aside className="w-full md:w-64 shrink-0">
+        <aside className="w-full md:w-72 shrink-0">
           <Card>
-            <CardContent className="p-4">
-              {/* Avatar at top of sidebar */}
+            <CardContent className="p-6">
+              {/* User Profile Card */}
               <div className="mb-6 pb-6 border-b border-border">
-                <ProfileAvatar
-                  displayName={displayName}
-                  selectedColor={selectedColor}
-                  onColorChange={setSelectedColor}
-                />
-                <div className="mt-3 flex items-center justify-center gap-1 text-sm text-muted-foreground">
-                  <RoleIcon className={`h-4 w-4 ${roleInfo[role || "child"].color}`} />
-                  <span>{roleInfo[role || "child"].label}</span>
+                <div className="flex flex-col items-center">
+                  <ProfileAvatar
+                    displayName={displayName}
+                    selectedColor={selectedColor}
+                    onColorChange={setSelectedColor}
+                  />
+                  
+                  {/* User Name */}
+                  <h2 className="mt-4 text-xl font-bold text-foreground">
+                    {profile.display_name || "User"}
+                  </h2>
+                  
+                  {/* Email/Username */}
+                  <div className="flex items-center gap-1 mt-1 text-sm text-muted-foreground">
+                    <Mail className="h-3 w-3" />
+                    <span>{user?.email || "No email"}</span>
+                  </div>
+                  
+                  {/* Role Badge */}
+                  <div className="mt-3 flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted text-sm">
+                    <RoleIcon className={`h-4 w-4 ${roleInfo[role || "child"].color}`} />
+                    <span className="font-medium">{roleInfo[role || "child"].label}</span>
+                  </div>
                 </div>
               </div>
 
@@ -158,7 +183,19 @@ export default function Profile() {
         {/* Main Content */}
         <main className="flex-1">
           <Card>
-            <CardContent className="p-6">
+            <CardHeader>
+              <CardTitle>
+                {activeSection === "account" && "Account Details"}
+                {activeSection === "settings" && "Preferences"}
+                {activeSection === "parent-link" && "Link to Parent"}
+              </CardTitle>
+              <CardDescription>
+                {activeSection === "account" && "Manage your personal information"}
+                {activeSection === "settings" && "Customize your Toki experience"}
+                {activeSection === "parent-link" && "Connect your account to a parent"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
               {renderContent()}
             </CardContent>
           </Card>

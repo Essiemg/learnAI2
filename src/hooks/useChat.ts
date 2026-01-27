@@ -11,11 +11,12 @@ interface UseChatOptions {
   fieldOfStudy?: string | null;
   subjects?: string[];
   learnerProfile?: LearnerProfile;
+  userName?: string;
   onInteraction?: (topic: string, message: string) => void;
 }
 
 export function useChat(options: UseChatOptions) {
-  const { gradeLevel, educationLevel, fieldOfStudy, subjects, learnerProfile, onInteraction } = options;
+  const { gradeLevel, educationLevel, fieldOfStudy, subjects, learnerProfile, userName, onInteraction } = options;
   const [state, setState] = useState<ChatState>({
     messages: [],
     isLoading: false,
@@ -74,6 +75,7 @@ export function useChat(options: UseChatOptions) {
             subjects,
             imageData,
             learnerProfile,
+            userName,
           }),
           signal: abortControllerRef.current.signal,
         });
@@ -161,7 +163,7 @@ export function useChat(options: UseChatOptions) {
         }));
       }
     },
-    [gradeLevel, educationLevel, fieldOfStudy, subjects, learnerProfile, onInteraction, state.messages]
+    [gradeLevel, educationLevel, fieldOfStudy, subjects, learnerProfile, userName, onInteraction, state.messages]
   );
 
   const clearMessages = useCallback(() => {
