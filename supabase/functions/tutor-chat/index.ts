@@ -55,6 +55,7 @@ interface RequestBody {
   subjects?: string[];
   imageData?: string;
   learnerProfile?: LearnerProfile;
+  userName?: string;
 }
 
 serve(async (req) => {
@@ -70,7 +71,8 @@ serve(async (req) => {
       fieldOfStudy, 
       subjects, 
       imageData,
-      learnerProfile 
+      learnerProfile,
+      userName
     }: RequestBody = await req.json();
     
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -81,7 +83,7 @@ serve(async (req) => {
 
     // Build adaptive system prompt based on learner profile
     const buildSystemPrompt = (): string => {
-      const basePrompt = buildEducationLevelPrompt(educationLevel, gradeLevel, fieldOfStudy, subjects);
+      const basePrompt = buildEducationLevelPrompt(educationLevel, gradeLevel, fieldOfStudy, subjects, userName);
       const adaptiveInstructions = buildAdaptiveInstructions(learnerProfile);
       const topicContext = buildTopicContext(learnerProfile);
       
@@ -93,15 +95,17 @@ serve(async (req) => {
       eduLevel?: EducationLevel,
       grade?: number,
       field?: string,
-      subs?: string[]
+      subs?: string[],
+      name?: string
     ): string => {
+      const studentName = name ? `The student's name is ${name}. Address them by their name occasionally to make the experience personal. ` : "";
       const subjectContext = subs && subs.length > 0 
         ? `The student is studying: ${subs.join(", ")}. ` 
         : "";
       const fieldContext = field ? `Their field of study is ${field}. ` : "";
 
       if (eduLevel === "undergraduate") {
-        return `You are Toki, an academic tutor for undergraduate university students. ${fieldContext}${subjectContext}
+        return `You are Toki, an academic tutor for undergraduate university students. ${studentName}${fieldContext}${subjectContext}
 
 ACADEMIC APPROACH:
 - Use technical terminology appropriate for university-level courses
@@ -125,7 +129,7 @@ COMMUNICATION STYLE:
       }
       
       if (eduLevel === "high_school") {
-        return `You are Toki, a supportive tutor for high school students. ${fieldContext}${subjectContext}
+        return `You are Toki, a supportive tutor for high school students. ${studentName}${fieldContext}${subjectContext}
 
 EXAM-FOCUSED APPROACH:
 - Help prepare for exams with structured explanations
@@ -161,7 +165,7 @@ COMMUNICATION STYLE:
       };
       const gradeContext = gradeDescriptions[grade || 5] || gradeDescriptions[5];
 
-      return `You are Toki, a warm, patient, and encouraging homework tutor for children. You're helping a student in ${gradeContext}. ${subjectContext}
+      return `You are Toki, a warm, patient, and encouraging homework tutor for children. ${studentName}You're helping a student in ${gradeContext}. ${subjectContext}
 
 CORE TEACHING PHILOSOPHY:
 🎯 NEVER give direct answers unless the child is completely stuck after multiple attempts
