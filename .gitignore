@@ -22,3 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Large model files (>100MB)
+/backend-api/models
+
+# Voice model large files
+/voice-model/datasets/data/LJSpeech-1.1.tar.bz2
+/voice-model/models/checkpoints/
+/voice-model/models/output/
