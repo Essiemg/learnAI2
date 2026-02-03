@@ -11,7 +11,7 @@ import { useUser } from "@/contexts/UserContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEducationContext } from "@/contexts/EducationContext";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
+import { flashcardApi } from "@/lib/api";
 import { toast } from "sonner";
 import { useSpeech } from "@/hooks/useSpeech";
 import { useFlashcardHistory } from "@/hooks/useFlashcardHistory";
@@ -75,46 +75,12 @@ export default function Flashcards() {
 
     setIsGenerating(true);
     try {
-      let data, error;
+      // Use the new API to generate flashcards
+      const topic = currentTopic?.name || selectedMaterials[0]?.name || "General";
+      const session = await flashcardApi.generate(topic, parseInt(count));
 
-      if (selectedMaterials.length > 0) {
-        const result = await supabase.functions.invoke("process-file", {
-          body: {
-            type: "flashcards",
-            fileData: selectedMaterials[0].base64,
-            fileType: selectedMaterials[0].type,
-            topic: currentTopic?.name,
-            gradeLevel: effectiveGradeLevel,
-            educationLevel: userEducation?.education_level,
-            fieldOfStudy: userEducation?.field_of_study,
-            subjects: subjectNames,
-            count: parseInt(count),
-            difficulty,
-          },
-        });
-        data = result.data;
-        error = result.error;
-      } else {
-        const result = await supabase.functions.invoke("generate-content", {
-          body: {
-            type: "flashcards",
-            topic: currentTopic?.name,
-            gradeLevel: effectiveGradeLevel,
-            educationLevel: userEducation?.education_level,
-            fieldOfStudy: userEducation?.field_of_study,
-            subjects: subjectNames,
-            count: parseInt(count),
-            difficulty,
-          },
-        });
-        data = result.data;
-        error = result.error;
-      }
-
-      if (error) throw error;
-
-      if (data?.flashcards) {
-        const formattedCards = data.flashcards.map((card: any, idx: number) => ({
+      if (session?.cards) {
+        const formattedCards = session.cards.map((card: any, idx: number) => ({
           id: `card-${idx}`,
           front: card.front,
           back: card.back,
@@ -122,13 +88,13 @@ export default function Flashcards() {
         setCards(formattedCards);
         setCurrentIndex(0);
         setIsFlipped(false);
-        setCurrentSessionTopic(currentTopic?.name || selectedMaterials[0]?.name || "Study Material");
+        setCurrentSessionTopic(topic);
 
         const activity = JSON.parse(localStorage.getItem("studybuddy_activity") || "{}");
         activity.flashcardsStudied = (activity.flashcardsStudied || 0) + formattedCards.length;
         localStorage.setItem("studybuddy_activity", JSON.stringify(activity));
 
-        toast.success(`Generated ${formattedCards.length} ${difficulty} flashcards!`);
+        toast.success(`Generated ${formattedCards.length} flashcards!`);
       } else {
         throw new Error("No flashcards generated");
       }

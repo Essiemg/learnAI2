@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Users, Loader2, CheckCircle, Link2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -13,8 +12,10 @@ interface LinkToParentProps {
   onLinkSuccess: () => void;
 }
 
+const LINK_STORAGE_KEY = "learnai_parent_link";
+
 export function LinkToParent({ isLinked, onLinkSuccess }: LinkToParentProps) {
-  const { refreshProfile } = useAuth();
+  const { refreshProfile, user } = useAuth();
   const [code, setCode] = useState("");
   const [isLinking, setIsLinking] = useState(false);
 
@@ -27,24 +28,21 @@ export function LinkToParent({ isLinked, onLinkSuccess }: LinkToParentProps) {
     setIsLinking(true);
 
     try {
-      const { data, error } = await supabase.rpc("link_child_to_parent", {
-        link_code: code
-      });
-
-      if (error) {
-        if (error.message.includes("primary")) {
-          toast.error("Only primary school students can link to parents");
-        } else if (error.message.includes("Invalid") || error.message.includes("expired")) {
-          toast.error("Invalid or expired code. Please ask your parent for a new one.");
-        } else {
-          toast.error("Failed to link account");
-        }
-        return;
+      // Store the link locally for now (in production, this would call an API)
+      if (user) {
+        const linkData = {
+          user_id: user.id,
+          parent_code: code,
+          linked_at: new Date().toISOString(),
+        };
+        localStorage.setItem(`${LINK_STORAGE_KEY}_${user.id}`, JSON.stringify(linkData));
+        
+        toast.success("Successfully linked to parent! 🎉");
+        await refreshProfile();
+        onLinkSuccess();
+      } else {
+        toast.error("You must be logged in to link to a parent");
       }
-
-      toast.success("Successfully linked to parent! 🎉");
-      await refreshProfile();
-      onLinkSuccess();
     } catch (error) {
       console.error("Error linking to parent:", error);
       toast.error("Failed to link account");

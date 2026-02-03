@@ -35,8 +35,10 @@ export function OnboardingComplete({ educationLevel }: OnboardingCompleteProps) 
         return "Get ready for fun learning adventures! 🚀";
       case 'high_school':
         return "Your personalized study tools are ready! 📚";
-      case 'undergraduate':
+      case 'college':
         return "Advanced academic support awaits you! 🎓";
+      default:
+        return "Let's start learning together! 🌟";
     }
   };
 

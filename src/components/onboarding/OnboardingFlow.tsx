@@ -1,79 +1,72 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EducationLevelStep } from './EducationLevelStep';
-import { FieldOfStudyStep } from './FieldOfStudyStep';
-import { SubjectSelectionStep } from './SubjectSelectionStep';
+import { GradeSelectionStep } from './GradeSelectionStep';
+import { CollegeDetailsStep } from './CollegeDetailsStep';
 import { OnboardingComplete } from './OnboardingComplete';
 import { useEducationContext } from '@/contexts/EducationContext';
 import { useAuth } from '@/contexts/AuthContext';
 import type { EducationLevel } from '@/types/education';
 import { toast } from 'sonner';
 
-type Step = 'education-level' | 'field-of-study' | 'subjects' | 'complete';
+type Step = 'education-level' | 'grade-selection' | 'college-details' | 'complete';
 
 export function OnboardingFlow() {
   const { profile } = useAuth();
-  const { saveEducation, allSubjects } = useEducationContext();
+  const { saveEducation } = useEducationContext();
   
   const [step, setStep] = useState<Step>('education-level');
   const [educationLevel, setEducationLevel] = useState<EducationLevel | null>(null);
-  const [fieldOfStudy, setFieldOfStudy] = useState<string | null>(null);
-  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
+  const [gradeLevel, setGradeLevel] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   const handleEducationLevelSelect = (level: EducationLevel) => {
     setEducationLevel(level);
-    setFieldOfStudy(null);
-    setSelectedSubjects([]);
+    setGradeLevel(null);
     
-    if (level === 'primary') {
-      // Primary doesn't have fields of study, go straight to subjects
-      setStep('subjects');
+    if (level === 'college') {
+      // College needs year and major selection
+      setStep('college-details');
     } else {
-      setStep('field-of-study');
+      // Primary and High School need grade selection
+      setStep('grade-selection');
     }
   };
 
-  const handleFieldOfStudySelect = (field: string) => {
-    setFieldOfStudy(field);
-    setStep('subjects');
-  };
-
-  const handleSubjectsSelected = async (subjectIds: string[]) => {
-    setSelectedSubjects(subjectIds);
+  const handleGradeSelect = async (grade: number) => {
+    setGradeLevel(grade);
     setIsSaving(true);
-
-    const { error } = await saveEducation(
-      educationLevel!,
-      fieldOfStudy,
-      subjectIds
-    );
-
+    
+    const { error } = await saveEducation(educationLevel!, null, [], grade, null, null);
     setIsSaving(false);
-
+    
     if (error) {
       toast.error('Failed to save your preferences. Please try again.');
       return;
     }
+    
+    setStep('complete');
+  };
 
+  const handleCollegeDetailsSubmit = async (year: number, major: string) => {
+    setIsSaving(true);
+    
+    const { error } = await saveEducation(educationLevel!, null, [], null, year, major);
+    setIsSaving(false);
+    
+    if (error) {
+      toast.error('Failed to save your preferences. Please try again.');
+      return;
+    }
+    
     setStep('complete');
   };
 
   const handleBack = () => {
-    if (step === 'field-of-study') {
+    if (step === 'grade-selection' || step === 'college-details') {
       setStep('education-level');
-    } else if (step === 'subjects') {
-      if (educationLevel === 'primary') {
-        setStep('education-level');
-      } else {
-        setStep('field-of-study');
-      }
     }
   };
-
-  const filteredSubjects = educationLevel 
-    ? allSubjects.filter(s => s.education_level === educationLevel)
-    : [];
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-secondary/30 to-background flex items-center justify-center p-4">
@@ -93,33 +86,31 @@ export function OnboardingFlow() {
             </motion.div>
           )}
 
-          {step === 'field-of-study' && educationLevel && (
+          {step === 'grade-selection' && educationLevel && (
             <motion.div
-              key="field-of-study"
+              key="grade-selection"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
             >
-              <FieldOfStudyStep
+              <GradeSelectionStep
                 educationLevel={educationLevel}
-                onSelect={handleFieldOfStudySelect}
+                onSelect={handleGradeSelect}
                 onBack={handleBack}
+                isSaving={isSaving}
               />
             </motion.div>
           )}
 
-          {step === 'subjects' && educationLevel && (
+          {step === 'college-details' && (
             <motion.div
-              key="subjects"
+              key="college-details"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
             >
-              <SubjectSelectionStep
-                educationLevel={educationLevel}
-                subjects={filteredSubjects}
-                selectedSubjects={selectedSubjects}
-                onSubmit={handleSubjectsSelected}
+              <CollegeDetailsStep
+                onSubmit={handleCollegeDetailsSubmit}
                 onBack={handleBack}
                 isSaving={isSaving}
               />

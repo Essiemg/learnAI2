@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { goalsApi, Goal as ApiGoal } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 
@@ -12,6 +12,17 @@ export interface Goal {
   created_at: string;
   updated_at: string;
 }
+
+// Convert API goal to our Goal type
+const toGoal = (apiGoal: ApiGoal, userId: string): Goal => ({
+  id: apiGoal.id,
+  user_id: userId,
+  title: apiGoal.title,
+  target_date: apiGoal.target_date || null,
+  is_completed: apiGoal.is_completed,
+  created_at: apiGoal.created_at,
+  updated_at: apiGoal.created_at,
+});
 
 export function useGoals() {
   const { user } = useAuth();
@@ -31,14 +42,8 @@ export function useGoals() {
     if (!user) return;
 
     try {
-      const { data, error } = await supabase
-        .from("goals")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setGoals(data || []);
+      const data = await goalsApi.getGoals();
+      setGoals(data.map(g => toGoal(g, user.id)));
     } catch (error: any) {
       console.error("Error fetching goals:", error);
       toast({
@@ -55,20 +60,10 @@ export function useGoals() {
     if (!user) return null;
 
     try {
-      const { data, error } = await supabase
-        .from("goals")
-        .insert({
-          user_id: user.id,
-          title,
-          target_date: null,
-          is_completed: false,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      setGoals((prev) => [data, ...prev]);
-      return data;
+      const data = await goalsApi.createGoal({ title });
+      const newGoal = toGoal(data, user.id);
+      setGoals((prev) => [newGoal, ...prev]);
+      return newGoal;
     } catch (error: any) {
       console.error("Error adding goal:", error);
       toast({
@@ -84,13 +79,12 @@ export function useGoals() {
     if (!user) return false;
 
     try {
-      const { error } = await supabase
-        .from("goals")
-        .update(updates)
-        .eq("id", id)
-        .eq("user_id", user.id);
-
-      if (error) throw error;
+      await goalsApi.updateGoal(id, {
+        title: updates.title,
+        description: updates.description,
+        target_date: updates.target_date || undefined,
+        is_completed: updates.is_completed,
+      });
       setGoals((prev) =>
         prev.map((goal) => (goal.id === id ? { ...goal, ...updates } : goal))
       );
@@ -110,13 +104,7 @@ export function useGoals() {
     if (!user) return false;
 
     try {
-      const { error } = await supabase
-        .from("goals")
-        .delete()
-        .eq("id", id)
-        .eq("user_id", user.id);
-
-      if (error) throw error;
+      await goalsApi.deleteGoal(id);
       setGoals((prev) => prev.filter((goal) => goal.id !== id));
       return true;
     } catch (error: any) {

@@ -12,7 +12,7 @@ import { useTopic } from "@/contexts/TopicContext";
 import { useUser } from "@/contexts/UserContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEducationContext } from "@/contexts/EducationContext";
-import { supabase } from "@/integrations/supabase/client";
+import { quizApi } from "@/lib/api";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useSpeech } from "@/hooks/useSpeech";
@@ -77,51 +77,19 @@ export default function Quizzes() {
 
     setIsGenerating(true);
     try {
-      let data, error;
+      // Use the new API to generate quiz
+      const quizSession = await quizApi.generate(
+        currentTopic?.name || selectedMaterials[0]?.name || "General",
+        parseInt(count)
+      );
 
-      if (selectedMaterials.length > 0) {
-        const result = await supabase.functions.invoke("process-file", {
-          body: {
-            type: "quiz",
-            fileData: selectedMaterials[0].base64,
-            fileType: selectedMaterials[0].type,
-            topic: currentTopic?.name,
-            gradeLevel: effectiveGradeLevel,
-            educationLevel: userEducation?.education_level,
-            fieldOfStudy: userEducation?.field_of_study,
-            subjects: subjectNames,
-            count: parseInt(count),
-            difficulty,
-          },
-        });
-        data = result.data;
-        error = result.error;
-      } else {
-        const result = await supabase.functions.invoke("generate-content", {
-          body: {
-            type: "quiz",
-            topic: currentTopic?.name,
-            gradeLevel: effectiveGradeLevel,
-            educationLevel: userEducation?.education_level,
-            fieldOfStudy: userEducation?.field_of_study,
-            subjects: subjectNames,
-            count: parseInt(count),
-            difficulty,
-          },
-        });
-        data = result.data;
-        error = result.error;
-      }
-
-      if (error) throw error;
-
-      if (data?.questions) {
-        const formattedQuestions = data.questions.map((q: any, idx: number) => ({
+      if (quizSession?.questions) {
+        const formattedQuestions = quizSession.questions.map((q: any, idx: number) => ({
           id: `q-${idx}`,
           question: q.question,
           options: q.options,
-          correctAnswer: q.correctAnswer,
-          explanation: q.explanation,
+          correctAnswer: q.correct_answer || q.correctAnswer || 0,
+          explanation: q.explanation || "",
         }));
 
         setQuiz({
@@ -130,9 +98,10 @@ export default function Quizzes() {
           answers: {},
           isSubmitted: false,
           score: 0,
+          sessionId: quizSession.id,
         });
         setSelectedAnswer(null);
-        toast.success(`Generated ${formattedQuestions.length} ${difficulty} questions!`);
+        toast.success(`Generated ${formattedQuestions.length} questions!`);
       } else {
         throw new Error("No questions generated");
       }

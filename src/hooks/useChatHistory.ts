@@ -1,8 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { chatApi, ChatSession as ApiChatSession } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Message } from "@/types/chat";
-import { Json } from "@/integrations/supabase/types";
 
 interface ChatSession {
   id: string;
@@ -12,10 +11,34 @@ interface ChatSession {
   updated_at: string;
 }
 
+const SESSION_ID_STORAGE_KEY = "toki_current_session_id";
+
+// Helper to load session ID from sessionStorage
+function loadPersistedSessionId(): string | null {
+  try {
+    return sessionStorage.getItem(SESSION_ID_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+// Helper to save session ID to sessionStorage
+function persistSessionId(sessionId: string | null) {
+  try {
+    if (sessionId) {
+      sessionStorage.setItem(SESSION_ID_STORAGE_KEY, sessionId);
+    } else {
+      sessionStorage.removeItem(SESSION_ID_STORAGE_KEY);
+    }
+  } catch (e) {
+    console.error("Failed to persist session ID:", e);
+  }
+}
+
 export function useChatHistory() {
   const { user } = useAuth();
   const [sessions, setSessions] = useState<ChatSession[]>([]);
-  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(() => loadPersistedSessionId());
   const [isLoading, setIsLoading] = useState(false);
 
   // Load sessions on mount
@@ -30,17 +53,11 @@ export function useChatHistory() {
     
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("chat_sessions")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("updated_at", { ascending: false });
+      const data = await chatApi.getSessions();
 
-      if (error) throw error;
-
-      const formattedSessions: ChatSession[] = (data || []).map((s) => ({
+      const formattedSessions: ChatSession[] = data.map((s) => ({
         id: s.id,
-        topic: s.topic,
+        topic: s.topic || null,
         messages: parseMessages(s.messages),
         created_at: s.created_at,
         updated_at: s.updated_at,
@@ -54,7 +71,7 @@ export function useChatHistory() {
     }
   }, [user]);
 
-  const parseMessages = (json: Json): Message[] => {
+  const parseMessages = (json: any[]): Message[] => {
     if (!Array.isArray(json)) return [];
     return json.map((m: any) => ({
       id: m.id || crypto.randomUUID(),
@@ -69,45 +86,26 @@ export function useChatHistory() {
     async (messages: Message[], topic?: string) => {
       if (!user || messages.length === 0) return null;
 
-      const messagesJson = messages.map((m) => ({
-        id: m.id,
-        role: m.role,
-        content: m.content,
-        timestamp: m.timestamp.toISOString(),
-        imageUrl: m.imageUrl,
-      }));
-
       try {
         if (currentSessionId) {
-          // Update existing session
-          const { error } = await supabase
-            .from("chat_sessions")
-            .update({
-              messages: messagesJson as Json,
-              topic: topic || null,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", currentSessionId);
-
-          if (error) throw error;
+          // Add messages to existing session
+          for (const m of messages) {
+            await chatApi.addMessage(currentSessionId, m.role, m.content);
+          }
           return currentSessionId;
         } else {
           // Create new session
-          const { data, error } = await supabase
-            .from("chat_sessions")
-            .insert({
-              user_id: user.id,
-              messages: messagesJson as Json,
-              topic: topic || null,
-            })
-            .select()
-            .single();
-
-          if (error) throw error;
+          const session = await chatApi.createSession(topic);
           
-          setCurrentSessionId(data.id);
+          // Add messages
+          for (const m of messages) {
+            await chatApi.addMessage(session.id, m.role, m.content);
+          }
+          
+          setCurrentSessionId(session.id);
+          persistSessionId(session.id);
           await loadSessions();
-          return data.id;
+          return session.id;
         }
       } catch (error) {
         console.error("Error saving chat session:", error);
@@ -122,6 +120,7 @@ export function useChatHistory() {
       const session = sessions.find((s) => s.id === sessionId);
       if (session) {
         setCurrentSessionId(sessionId);
+        persistSessionId(sessionId);
         return session.messages;
       }
       return null;
@@ -132,15 +131,11 @@ export function useChatHistory() {
   const deleteSession = useCallback(
     async (sessionId: string) => {
       try {
-        const { error } = await supabase
-          .from("chat_sessions")
-          .delete()
-          .eq("id", sessionId);
-
-        if (error) throw error;
+        await chatApi.deleteSession(sessionId);
 
         if (currentSessionId === sessionId) {
           setCurrentSessionId(null);
+          persistSessionId(null);
         }
 
         await loadSessions();
@@ -155,6 +150,7 @@ export function useChatHistory() {
 
   const startNewSession = useCallback(() => {
     setCurrentSessionId(null);
+    persistSessionId(null);
   }, []);
 
   return {

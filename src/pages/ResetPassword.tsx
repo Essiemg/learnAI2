@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { authApi, isAuthenticated } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,19 +20,18 @@ export default function ResetPassword() {
   const [isSuccess, setIsSuccess] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
+  const resetToken = searchParams.get("token");
+
   useEffect(() => {
-    // Check if we have a valid session from the reset link
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        toast.error("Invalid or expired reset link");
-        navigate("/forgot-password");
-      }
-    };
-    checkSession();
-  }, [navigate]);
+    // Check if we have a valid token or authenticated session
+    if (!resetToken && !isAuthenticated()) {
+      toast.error("Invalid or expired reset link");
+      navigate("/forgot-password");
+    }
+  }, [navigate, resetToken]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,19 +49,21 @@ export default function ResetPassword() {
 
     setIsLoading(true);
 
-    const { error } = await supabase.auth.updateUser({
-      password: password,
-    });
-
-    setIsLoading(false);
-
-    if (error) {
+    try {
+      if (resetToken) {
+        // Use token-based reset
+        await authApi.resetPassword(resetToken, password);
+      } else {
+        // Use authenticated user password update
+        await authApi.updatePassword(password);
+      }
+      setIsSuccess(true);
+      toast.success("Password updated successfully!");
+    } catch (error: any) {
       toast.error(error.message || "Failed to reset password");
-      return;
+    } finally {
+      setIsLoading(false);
     }
-
-    setIsSuccess(true);
-    toast.success("Password updated successfully!");
   };
 
   if (isSuccess) {

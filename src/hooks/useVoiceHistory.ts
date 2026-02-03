@@ -1,8 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Message } from "@/types/chat";
-import { Json } from "@/integrations/supabase/types";
 
 interface VoiceSession {
   id: string;
@@ -12,6 +10,8 @@ interface VoiceSession {
   created_at: string;
   updated_at: string;
 }
+
+const STORAGE_KEY = "learnai_voice_history";
 
 export function useVoiceHistory() {
   const { user } = useAuth();
@@ -23,6 +23,8 @@ export function useVoiceHistory() {
   useEffect(() => {
     if (user) {
       loadSessions();
+    } else {
+      setSessions([]);
     }
   }, [user]);
 
@@ -31,109 +33,99 @@ export function useVoiceHistory() {
 
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("voice_sessions")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("updated_at", { ascending: false });
-
-      if (error) throw error;
-
-      const formattedSessions: VoiceSession[] = (data || []).map((s) => ({
-        id: s.id,
-        topic: s.topic,
-        messages: parseMessages(s.messages),
-        duration_seconds: s.duration_seconds || 0,
-        created_at: s.created_at,
-        updated_at: s.updated_at,
+      const stored = localStorage.getItem(`${STORAGE_KEY}_${user.id}`);
+      const data = stored ? JSON.parse(stored) : [];
+      // Restore Date objects for timestamps
+      const formattedSessions: VoiceSession[] = data.map((s: any) => ({
+        ...s,
+        messages: s.messages.map((m: any) => ({
+          ...m,
+          timestamp: new Date(m.timestamp),
+        })),
       }));
-
       setSessions(formattedSessions);
     } catch (error) {
       console.error("Error loading voice sessions:", error);
+      setSessions([]);
     } finally {
       setIsLoading(false);
     }
   }, [user]);
 
-  const parseMessages = (json: Json): Message[] => {
-    if (!Array.isArray(json)) return [];
-    return json.map((m: any) => ({
-      id: m.id || crypto.randomUUID(),
-      role: m.role,
-      content: m.content,
-      timestamp: new Date(m.timestamp || Date.now()),
-    }));
-  };
+  const saveSessionsLocal = useCallback(
+    (newSessions: VoiceSession[]) => {
+      if (!user) return;
+      // Serialize dates properly
+      const serialized = newSessions.map((s) => ({
+        ...s,
+        messages: s.messages.map((m) => ({
+          ...m,
+          timestamp: m.timestamp instanceof Date ? m.timestamp.toISOString() : m.timestamp,
+        })),
+      }));
+      localStorage.setItem(`${STORAGE_KEY}_${user.id}`, JSON.stringify(serialized));
+      setSessions(newSessions);
+    },
+    [user]
+  );
 
   const startSession = useCallback(async () => {
     if (!user) return null;
 
     setSessionStartTime(new Date());
 
-    try {
-      const { data, error } = await supabase
-        .from("voice_sessions")
-        .insert({
-          user_id: user.id,
-          messages: [] as Json,
-          topic: null,
-          duration_seconds: 0,
-        })
-        .select()
-        .single();
+    const now = new Date().toISOString();
+    const newSession: VoiceSession = {
+      id: `voice-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      topic: null,
+      messages: [],
+      duration_seconds: 0,
+      created_at: now,
+      updated_at: now,
+    };
 
-      if (error) throw error;
-
-      setCurrentSessionId(data.id);
-      return data.id;
-    } catch (error) {
-      console.error("Error starting voice session:", error);
-      return null;
-    }
-  }, [user]);
+    setCurrentSessionId(newSession.id);
+    const newSessions = [newSession, ...sessions];
+    saveSessionsLocal(newSessions);
+    return newSession.id;
+  }, [user, sessions, saveSessionsLocal]);
 
   const updateSession = useCallback(
     async (messages: Message[], topic?: string) => {
       if (!user || !currentSessionId) return false;
-
-      const messagesJson = messages.map((m) => ({
-        id: m.id,
-        role: m.role,
-        content: m.content,
-        timestamp: m.timestamp.toISOString(),
-      }));
 
       const durationSeconds = sessionStartTime
         ? Math.floor((Date.now() - sessionStartTime.getTime()) / 1000)
         : 0;
 
       try {
-        const { error } = await supabase
-          .from("voice_sessions")
-          .update({
-            messages: messagesJson as Json,
-            topic: topic || null,
-            duration_seconds: durationSeconds,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", currentSessionId);
-
-        if (error) throw error;
+        const newSessions = sessions.map((s) =>
+          s.id === currentSessionId
+            ? {
+                ...s,
+                messages,
+                topic: topic || s.topic,
+                duration_seconds: durationSeconds,
+                updated_at: new Date().toISOString(),
+              }
+            : s
+        );
+        saveSessionsLocal(newSessions);
         return true;
       } catch (error) {
         console.error("Error updating voice session:", error);
         return false;
       }
     },
-    [user, currentSessionId, sessionStartTime]
+    [user, currentSessionId, sessionStartTime, sessions, saveSessionsLocal]
   );
 
   const endSession = useCallback(async (messages: Message[]) => {
     if (!currentSessionId || messages.length === 0) {
       // Delete empty session
       if (currentSessionId) {
-        await supabase.from("voice_sessions").delete().eq("id", currentSessionId);
+        const newSessions = sessions.filter((s) => s.id !== currentSessionId);
+        saveSessionsLocal(newSessions);
       }
       setCurrentSessionId(null);
       setSessionStartTime(null);
@@ -147,8 +139,7 @@ export function useVoiceHistory() {
     await updateSession(messages, topic);
     setCurrentSessionId(null);
     setSessionStartTime(null);
-    await loadSessions();
-  }, [currentSessionId, updateSession, loadSessions]);
+  }, [currentSessionId, updateSession, sessions, saveSessionsLocal]);
 
   const loadSession = useCallback(
     (sessionId: string): Message[] | null => {
@@ -164,20 +155,15 @@ export function useVoiceHistory() {
   const deleteSession = useCallback(
     async (sessionId: string) => {
       try {
-        const { error } = await supabase
-          .from("voice_sessions")
-          .delete()
-          .eq("id", sessionId);
-
-        if (error) throw error;
-        await loadSessions();
+        const newSessions = sessions.filter((s) => s.id !== sessionId);
+        saveSessionsLocal(newSessions);
         return true;
       } catch (error) {
         console.error("Error deleting voice session:", error);
         return false;
       }
     },
-    [loadSessions]
+    [sessions, saveSessionsLocal]
   );
 
   const getSessionSummary = useCallback((session: VoiceSession): string => {

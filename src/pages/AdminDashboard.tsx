@@ -1,11 +1,10 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Shield, Users, GraduationCap, Loader2, Trash2 } from "lucide-react";
+import { ArrowLeft, Shield, Users, GraduationCap, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { toast } from "sonner";
@@ -20,37 +19,34 @@ interface UserData {
 }
 
 export default function AdminDashboard() {
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const navigate = useNavigate();
   const [users, setUsers] = useState<UserData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchUsers = async () => {
-      // Fetch all profiles
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, user_id, display_name, grade_level, avatar_url");
-
-      if (profiles) {
-        // Fetch roles for each user
-        const { data: roles } = await supabase.from("user_roles").select("user_id, role");
-
-        const usersWithRoles = profiles.map((p) => ({
-          ...p,
-          role: roles?.find((r) => r.user_id === p.user_id)?.role || "unknown",
-        }));
-
-        setUsers(usersWithRoles);
+      // For now, just show the current user as admin view isn't implemented
+      // In production, this would fetch from an admin API endpoint
+      if (user) {
+        setUsers([
+          {
+            id: user.id,
+            user_id: user.id,
+            display_name: user.name || user.email,
+            grade_level: user.grade || null,
+            avatar_url: null,
+            role: role || "child",
+          },
+        ]);
       }
-
       setIsLoading(false);
     };
 
     if (role === "admin") {
       fetchUsers();
     }
-  }, [role]);
+  }, [role, user]);
 
   if (role !== "admin") {
     toast.error("Access denied");

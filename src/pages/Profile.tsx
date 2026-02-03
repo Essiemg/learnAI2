@@ -13,13 +13,14 @@ import { PreferencesSection } from "@/components/profile/PreferencesSection";
 import { LinkToParent } from "@/components/profile/LinkToParent";
 
 export default function Profile() {
-  const { user, profile, role, updateProfile, signOut, isLoading: authLoading } = useAuth();
+  const { user, profile, role, updateProfile, updateAvatar, signOut, isLoading: authLoading } = useAuth();
   const { userEducation } = useEducation();
   const navigate = useNavigate();
   
   const [displayName, setDisplayName] = useState(profile?.display_name || "");
   const [gradeLevel, setGradeLevel] = useState(profile?.grade_level?.toString() || "");
   const [selectedColor, setSelectedColor] = useState(0);
+  const [customAvatar, setCustomAvatar] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isLinkedToParent, setIsLinkedToParent] = useState(!!profile?.parent_id);
   const [activeSection, setActiveSection] = useState<ProfileSection>("account");
@@ -32,8 +33,14 @@ export default function Profile() {
       setGradeLevel(profile.grade_level?.toString() || "");
       setIsLinkedToParent(!!profile.parent_id);
       
-      const colorIndex = avatarColors.findIndex(c => c === profile.avatar_url);
-      if (colorIndex !== -1) setSelectedColor(colorIndex);
+      // Check if avatar_url is a data URL (custom image) or a color class
+      if (profile.avatar_url && profile.avatar_url.startsWith('data:')) {
+        setCustomAvatar(profile.avatar_url);
+      } else {
+        setCustomAvatar(null);
+        const colorIndex = avatarColors.findIndex(c => c === profile.avatar_url);
+        if (colorIndex !== -1) setSelectedColor(colorIndex);
+      }
     }
   }, [profile]);
 
@@ -50,12 +57,23 @@ export default function Profile() {
     return null;
   }
 
+  const handleAvatarChange = async (avatarDataUrl: string | null) => {
+    setCustomAvatar(avatarDataUrl);
+    if (avatarDataUrl) {
+      await updateAvatar(avatarDataUrl);
+      toast.success("Profile picture updated!");
+    } else {
+      // Remove custom avatar, revert to color
+      await updateAvatar(avatarColors[selectedColor]);
+    }
+  };
+
   const handleSave = async () => {
     setIsSaving(true);
 
     const updates: Record<string, unknown> = {
       display_name: displayName.trim(),
-      avatar_url: avatarColors[selectedColor],
+      avatar_url: customAvatar || avatarColors[selectedColor],
     };
 
     if (role === "child" && gradeLevel) {
@@ -147,7 +165,9 @@ export default function Profile() {
                   <ProfileAvatar
                     displayName={displayName}
                     selectedColor={selectedColor}
+                    customAvatar={customAvatar}
                     onColorChange={setSelectedColor}
+                    onAvatarChange={handleAvatarChange}
                   />
                   
                   {/* User Name */}

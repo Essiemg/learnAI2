@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface Material {
@@ -10,7 +9,10 @@ interface Material {
   file_size: number | null;
   extracted_text: string | null;
   created_at: string;
+  base64_data?: string;
 }
+
+const STORAGE_KEY = "learnai_materials";
 
 export function useUploadedMaterials() {
   const { user } = useAuth();
@@ -25,15 +27,12 @@ export function useUploadedMaterials() {
 
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("uploaded_materials")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setMaterials(data || []);
+      const stored = localStorage.getItem(`${STORAGE_KEY}_${user.id}`);
+      const data = stored ? JSON.parse(stored) : [];
+      setMaterials(data);
     } catch (e) {
       console.error("Error fetching materials:", e);
+      setMaterials([]);
     } finally {
       setIsLoading(false);
     }
@@ -43,25 +42,25 @@ export function useUploadedMaterials() {
     fetchMaterials();
   }, [fetchMaterials]);
 
+  const saveMaterialsLocal = useCallback(
+    (newMaterials: Material[]) => {
+      if (!user) return;
+      localStorage.setItem(`${STORAGE_KEY}_${user.id}`, JSON.stringify(newMaterials));
+      setMaterials(newMaterials);
+    },
+    [user]
+  );
+
   const getSignedUrl = async (filePath: string): Promise<string | null> => {
-    try {
-      const { data, error } = await supabase.storage
-        .from("study-materials")
-        .createSignedUrl(filePath, 3600);
-      
-      if (error) throw error;
-      return data.signedUrl;
-    } catch (e) {
-      console.error("Error getting signed URL:", e);
-      return null;
-    }
+    // For localStorage-based storage, we store base64 directly
+    const material = materials.find((m) => m.file_path === filePath);
+    return material?.base64_data || null;
   };
 
-  const deleteMaterial = async (id: string, filePath: string) => {
+  const deleteMaterial = async (id: string, _filePath: string) => {
     try {
-      await supabase.storage.from("study-materials").remove([filePath]);
-      await supabase.from("uploaded_materials").delete().eq("id", id);
-      setMaterials((prev) => prev.filter((m) => m.id !== id));
+      const newMaterials = materials.filter((m) => m.id !== id);
+      saveMaterialsLocal(newMaterials);
       return true;
     } catch (e) {
       console.error("Error deleting material:", e);

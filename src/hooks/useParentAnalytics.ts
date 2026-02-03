@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import type { ConfidenceLevel, LearningStyle } from "@/types/learningAnalytics";
 
@@ -60,6 +59,9 @@ interface ChildAnalytics {
   };
 }
 
+const CHILDREN_KEY = "learnai_children";
+const LINK_CODE_KEY = "learnai_link_code";
+
 export function useParentAnalytics() {
   const { profile } = useAuth();
   const [children, setChildren] = useState<ChildAnalytics[]>([]);
@@ -73,196 +75,66 @@ export function useParentAnalytics() {
     setIsLoading(true);
 
     try {
-      // Fetch children linked to this parent (primary only)
-      const { data: childProfiles } = await supabase
-        .from("profiles")
-        .select("id, user_id, display_name, grade_level, avatar_url")
-        .eq("parent_id", profile.id);
-
-      if (!childProfiles || childProfiles.length === 0) {
-        setChildren([]);
-        setIsLoading(false);
-        return;
-      }
-
-      // Filter to only primary students
-      const childUserIds = childProfiles.map(c => c.user_id);
-      const { data: educationData } = await supabase
-        .from("user_education")
-        .select("user_id, education_level")
-        .in("user_id", childUserIds)
-        .eq("education_level", "primary");
-
-      const primaryChildIds = new Set(educationData?.map(e => e.user_id) || []);
-      const primaryChildren = childProfiles.filter(c => primaryChildIds.has(c.user_id));
-
-      if (primaryChildren.length === 0) {
-        setChildren([]);
-        setIsLoading(false);
-        return;
-      }
-
-      // Fetch analytics for each primary child
-      const childAnalytics: ChildAnalytics[] = await Promise.all(
-        primaryChildren.map(async (child) => {
-          // Topic mastery
-          const { data: mastery } = await supabase
-            .from("topic_mastery")
-            .select("*")
-            .eq("user_id", child.user_id)
-            .order("updated_at", { ascending: false });
-
-          // Learner preferences
-          const { data: prefs } = await supabase
-            .from("learner_preferences")
-            .select("*")
-            .eq("user_id", child.user_id)
-            .maybeSingle();
-
-          // Recent quiz sessions
-          const { data: quizzes } = await supabase
-            .from("quiz_sessions")
-            .select("id, topic, created_at, score, is_completed")
-            .eq("user_id", child.user_id)
-            .order("created_at", { ascending: false })
-            .limit(5);
-
-          // Recent flashcard sessions
-          const { data: flashcards } = await supabase
-            .from("flashcard_sessions")
-            .select("id, topic, created_at")
-            .eq("user_id", child.user_id)
-            .order("created_at", { ascending: false })
-            .limit(5);
-
-          // Recent learning interactions (this week)
-          const oneWeekAgo = new Date();
-          oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-          
-          const { data: interactions } = await supabase
-            .from("learning_interactions")
-            .select("*")
-            .eq("user_id", child.user_id)
-            .gte("created_at", oneWeekAgo.toISOString());
-
-          // Build recent activity
-          const recentActivity: RecentActivity[] = [
-            ...(quizzes?.map(q => ({
-              id: q.id,
-              type: 'quiz' as const,
-              topic: q.topic,
-              created_at: q.created_at,
-              details: { score: q.score ?? undefined }
-            })) || []),
-            ...(flashcards?.map(f => ({
-              id: f.id,
-              type: 'flashcard' as const,
-              topic: f.topic,
-              created_at: f.created_at
-            })) || [])
-          ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-           .slice(0, 10);
-
-          // Calculate weekly stats
-          const weeklyInteractions = interactions || [];
-          const topicsThisWeek = new Set(weeklyInteractions.map(i => i.topic));
-          const totalTime = weeklyInteractions.reduce((sum, i) => sum + (i.time_spent_seconds || 0), 0);
-          
-          const confidenceCounts: Record<string, number> = {};
-          weeklyInteractions.forEach(i => {
-            if (i.confidence_indicator) {
-              confidenceCounts[i.confidence_indicator] = (confidenceCounts[i.confidence_indicator] || 0) + 1;
-            }
-          });
-          const avgConfidence = Object.entries(confidenceCounts)
-            .sort((a, b) => b[1] - a[1])[0]?.[0] || 'neutral';
-
-          return {
-            profile: child,
-            educationLevel: 'primary',
-            topicMastery: mastery || [],
-            preferences: prefs ? {
-              preferred_style: prefs.preferred_style || 'mixed',
-              average_explanation_depth: prefs.average_explanation_depth || 2,
-              prefers_examples: prefs.prefers_examples ?? true,
-              prefers_analogies: prefs.prefers_analogies ?? true,
-              prefers_step_by_step: prefs.prefers_step_by_step ?? true,
-              prefers_practice_problems: prefs.prefers_practice_problems ?? false,
-              average_confidence: prefs.average_confidence || 'neutral',
-              total_interactions: prefs.total_interactions || 0,
-              total_topics_covered: prefs.total_topics_covered || 0,
-              struggling_topics: prefs.struggling_topics || [],
-              strong_topics: prefs.strong_topics || []
-            } : null,
-            recentActivity,
-            weeklyStats: {
-              totalInteractions: weeklyInteractions.length,
-              topicsCovered: topicsThisWeek.size,
-              averageConfidence: avgConfidence,
-              timeSpentMinutes: Math.round(totalTime / 60)
-            }
-          };
-        })
-      );
-
-      setChildren(childAnalytics);
+      // Load children from localStorage (placeholder for parent-child linking)
+      const stored = localStorage.getItem(`${CHILDREN_KEY}_${profile.id}`);
+      const childData = stored ? JSON.parse(stored) : [];
+      
+      // For now, return empty array - parent linking would be implemented server-side
+      setChildren(childData);
     } catch (error) {
       console.error("Error fetching child analytics:", error);
+      setChildren([]);
     } finally {
       setIsLoading(false);
     }
   }, [profile?.id]);
 
   const generateLinkCode = useCallback(async () => {
-    if (!profile?.user_id) return null;
+    if (!profile?.id) return null;
 
     setIsGeneratingCode(true);
     try {
-      // Generate code using the database function
-      const { data: codeData, error: codeError } = await supabase
-        .rpc("generate_parent_link_code");
+      // Generate a random 6-character code
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let code = '';
+      for (let i = 0; i < 6; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
 
-      if (codeError) throw codeError;
-
-      const newCode = codeData as string;
-
-      // Insert the link code
-      const { error: insertError } = await supabase
-        .from("parent_link_codes")
-        .insert({
-          parent_user_id: profile.user_id,
-          code: newCode
-        });
-
-      if (insertError) throw insertError;
-
-      setLinkCode(newCode);
-      return newCode;
+      // Store the link code
+      const codeData = {
+        code,
+        parent_id: profile.id,
+        created_at: new Date().toISOString(),
+        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
+      };
+      localStorage.setItem(`${LINK_CODE_KEY}_${profile.id}`, JSON.stringify(codeData));
+      
+      setLinkCode(code);
+      return code;
     } catch (error) {
       console.error("Error generating link code:", error);
       return null;
     } finally {
       setIsGeneratingCode(false);
     }
-  }, [profile?.user_id]);
+  }, [profile?.id]);
 
   const fetchExistingLinkCode = useCallback(async () => {
-    if (!profile?.user_id) return;
+    if (!profile?.id) return;
 
-    const { data } = await supabase
-      .from("parent_link_codes")
-      .select("code")
-      .eq("parent_user_id", profile.user_id)
-      .is("used_at", null)
-      .gt("expires_at", new Date().toISOString())
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (data) {
-      setLinkCode(data.code);
+    try {
+      const stored = localStorage.getItem(`${LINK_CODE_KEY}_${profile.id}`);
+      if (stored) {
+        const data = JSON.parse(stored);
+        if (new Date(data.expires_at) > new Date()) {
+          setLinkCode(data.code);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching link code:", error);
     }
-  }, [profile?.user_id]);
+  }, [profile?.id]);
 
   useEffect(() => {
     fetchChildAnalytics();

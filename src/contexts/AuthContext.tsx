@@ -1,6 +1,9 @@
+/**
+ * Auth Context - JWT-based authentication
+ * Replaces Supabase auth with custom backend API
+ */
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { User, Session } from "@supabase/supabase-js";
-import { supabase } from "@/integrations/supabase/client";
+import { authApi, getToken, removeToken, UserProfile } from "@/lib/api";
 
 type UserRole = "child" | "parent" | "admin";
 
@@ -13,6 +16,20 @@ interface Profile {
   parent_id: string | null;
   created_at: string;
   updated_at: string;
+}
+
+// Simplified User type (replacing Supabase User)
+interface User {
+  id: string;
+  email: string;
+  name: string;
+  grade: number;
+}
+
+// Simplified Session type (replacing Supabase Session)
+interface Session {
+  access_token: string;
+  user: User;
 }
 
 interface AuthContextType {
@@ -32,8 +49,11 @@ interface AuthContextType {
   ) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<Profile>) => Promise<{ error: Error | null }>;
+  updateAvatar: (avatarDataUrl: string) => Promise<{ error: Error | null }>;
   refreshProfile: () => Promise<void>;
 }
+
+const AVATAR_STORAGE_KEY = 'learnai_user_avatar';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -44,68 +64,121 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<UserRole | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchProfile = async (userId: string) => {
-    const { data: profileData } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("user_id", userId)
-      .maybeSingle();
+  // Get stored avatar for a user
+  const getStoredAvatar = (userId: string): string | null => {
+    return localStorage.getItem(`${AVATAR_STORAGE_KEY}_${userId}`);
+  };
 
-    const { data: roleData } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId)
-      .maybeSingle();
+  // Store avatar for a user
+  const storeAvatar = (userId: string, avatarUrl: string): void => {
+    localStorage.setItem(`${AVATAR_STORAGE_KEY}_${userId}`, avatarUrl);
+  };
 
-    setProfile(profileData);
-    setRole(roleData?.role as UserRole | null);
+  // Convert API UserProfile to our Profile type
+  const userProfileToProfile = (userProfile: UserProfile): Profile => {
+    // Check for pending avatar from signup
+    const pendingAvatar = localStorage.getItem('pending_avatar');
+    let avatarUrl = getStoredAvatar(userProfile.id);
+    
+    if (pendingAvatar) {
+      // Move pending avatar to user's storage
+      storeAvatar(userProfile.id, pendingAvatar);
+      avatarUrl = pendingAvatar;
+      localStorage.removeItem('pending_avatar');
+    }
+    
+    return {
+      id: userProfile.id,
+      user_id: userProfile.id,
+      display_name: userProfile.name,
+      avatar_url: avatarUrl,
+      grade_level: userProfile.grade,
+      parent_id: null,
+      created_at: userProfile.created_at,
+      updated_at: userProfile.created_at,
+    };
+  };
+
+  // Convert API UserProfile to User
+  const userProfileToUser = (userProfile: UserProfile): User => ({
+    id: userProfile.id,
+    email: userProfile.email,
+    name: userProfile.name,
+    grade: userProfile.grade,
+  });
+
+  const fetchProfile = async () => {
+    try {
+      const userProfile = await authApi.getMe();
+      const user = userProfileToUser(userProfile);
+      const profile = userProfileToProfile(userProfile);
+      
+      setUser(user);
+      setProfile(profile);
+      setRole("child"); // Default role - can be extended
+      
+      const token = getToken();
+      if (token) {
+        setSession({ access_token: token, user });
+      }
+    } catch (error) {
+      // Token invalid or expired
+      console.error("Failed to fetch profile:", error);
+      setUser(null);
+      setSession(null);
+      setProfile(null);
+      setRole(null);
+      removeToken();
+    }
   };
 
   useEffect(() => {
-    // Set up auth state listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
-        setSession(newSession);
-        setUser(newSession?.user ?? null);
-
-        if (newSession?.user) {
-          // Defer profile fetch to avoid blocking
-          setTimeout(() => fetchProfile(newSession.user.id), 0);
-        } else {
-          setProfile(null);
-          setRole(null);
-        }
-
+    // Check for OAuth callback token in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    const error = urlParams.get('error');
+    
+    if (token) {
+      // Handle OAuth callback - store token and clean URL
+      authApi.handleOAuthCallback(token);
+      window.history.replaceState({}, '', window.location.pathname);
+      fetchProfile().finally(() => setIsLoading(false));
+    } else if (error) {
+      // Handle OAuth error
+      console.error('OAuth error:', error);
+      window.history.replaceState({}, '', window.location.pathname);
+      setIsLoading(false);
+    } else {
+      // Check for existing token on mount
+      const existingToken = getToken();
+      if (existingToken) {
+        fetchProfile().finally(() => setIsLoading(false));
+      } else {
         setIsLoading(false);
       }
-    );
-
-    // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session: existingSession } }) => {
-      setSession(existingSession);
-      setUser(existingSession?.user ?? null);
-      if (existingSession?.user) {
-        fetchProfile(existingSession.user.id);
-      }
-      setIsLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
+    }
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error: error as Error | null };
+    try {
+      await authApi.login({ email, password });
+      await fetchProfile();
+      return { error: null };
+    } catch (error) {
+      return { error: error as Error };
+    }
   };
 
   const signInWithGoogle = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/`,
-      },
-    });
-    return { error: error as Error | null };
+    // Redirect to Google OAuth flow
+    try {
+      const googleLoginUrl = authApi.getGoogleLoginUrl();
+      window.location.href = googleLoginUrl;
+      // This won't return as we're redirecting
+      return { error: null };
+    } catch (error) {
+      return { error: error as Error };
+    }
   };
 
   const signUp = async (
@@ -115,23 +188,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     displayName: string,
     gradeLevel?: number
   ) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: window.location.origin,
-        data: {
-          role: userRole,
-          display_name: displayName,
-          grade_level: gradeLevel,
-        },
-      },
-    });
-    return { error: error as Error | null };
+    try {
+      await authApi.register({
+        email,
+        password,
+        name: displayName,
+        grade: gradeLevel || 1,
+      });
+      // Don't fetch profile - user needs to verify email first
+      // await fetchProfile();
+      return { error: null };
+    } catch (error) {
+      return { error: error as Error };
+    }
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    authApi.logout();
     setUser(null);
     setSession(null);
     setProfile(null);
@@ -141,21 +214,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const updateProfile = async (updates: Partial<Profile>) => {
     if (!user) return { error: new Error("Not authenticated") };
 
-    const { error } = await supabase
-      .from("profiles")
-      .update(updates)
-      .eq("user_id", user.id);
-
-    if (!error) {
-      await fetchProfile(user.id);
+    try {
+      await authApi.updateMe({
+        name: updates.display_name,
+        grade: updates.grade_level || undefined,
+      });
+      await fetchProfile();
+      return { error: null };
+    } catch (error) {
+      return { error: error as Error };
     }
+  };
 
-    return { error: error as Error | null };
+  const updateAvatar = async (avatarDataUrl: string) => {
+    if (!user) return { error: new Error("Not authenticated") };
+
+    try {
+      // Store avatar in localStorage
+      storeAvatar(user.id, avatarDataUrl);
+      
+      // Update profile state with new avatar
+      if (profile) {
+        setProfile({
+          ...profile,
+          avatar_url: avatarDataUrl,
+        });
+      }
+      
+      return { error: null };
+    } catch (error) {
+      return { error: error as Error };
+    }
   };
 
   const refreshProfile = async () => {
-    if (user) {
-      await fetchProfile(user.id);
+    if (getToken()) {
+      await fetchProfile();
     }
   };
 
@@ -172,6 +266,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signUp,
         signOut,
         updateProfile,
+        updateAvatar,
         refreshProfile,
       }}
     >

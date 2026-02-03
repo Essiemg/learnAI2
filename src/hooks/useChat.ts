@@ -1,9 +1,11 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { Message, ChatState } from "@/types/chat";
 import type { EducationLevel } from "@/types/education";
 import type { LearnerProfile } from "@/types/learningAnalytics";
+import { tutorApi, getToken } from "@/lib/api";
 
-const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/tutor-chat`;
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+const CHAT_STORAGE_KEY = "toki_current_chat";
 
 interface UseChatOptions {
   gradeLevel: number;
@@ -15,15 +17,57 @@ interface UseChatOptions {
   onInteraction?: (topic: string, message: string) => void;
 }
 
+// Helper to load messages from sessionStorage
+function loadPersistedMessages(): Message[] {
+  try {
+    const stored = sessionStorage.getItem(CHAT_STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return parsed.map((m: any) => ({
+        ...m,
+        timestamp: new Date(m.timestamp),
+      }));
+    }
+  } catch (e) {
+    console.error("Failed to load persisted chat:", e);
+  }
+  return [];
+}
+
+// Helper to save messages to sessionStorage
+function persistMessages(messages: Message[]) {
+  try {
+    const toStore = messages.map((m) => ({
+      ...m,
+      timestamp: m.timestamp.toISOString(),
+    }));
+    sessionStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(toStore));
+  } catch (e) {
+    console.error("Failed to persist chat:", e);
+  }
+}
+
+// Helper to clear persisted messages
+function clearPersistedMessages() {
+  sessionStorage.removeItem(CHAT_STORAGE_KEY);
+}
+
 export function useChat(options: UseChatOptions) {
   const { gradeLevel, educationLevel, fieldOfStudy, subjects, learnerProfile, userName, onInteraction } = options;
-  const [state, setState] = useState<ChatState>({
-    messages: [],
+  const [state, setState] = useState<ChatState>(() => ({
+    messages: loadPersistedMessages(),
     isLoading: false,
     error: null,
-  });
+  }));
 
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Persist messages whenever they change
+  useEffect(() => {
+    if (state.messages.length > 0) {
+      persistMessages(state.messages);
+    }
+  }, [state.messages]);
 
   const sendMessage = useCallback(
     async (content: string, imageData?: string) => {
@@ -60,41 +104,23 @@ export function useChat(options: UseChatOptions) {
 
       try {
         abortControllerRef.current = new AbortController();
+        
+        // Extract topic from message
+        const topic = extractTopic(content) || "general";
 
-        const response = await fetch(CHAT_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-          body: JSON.stringify({
-            messages: apiMessages,
-            gradeLevel,
-            educationLevel,
-            fieldOfStudy,
-            subjects,
-            imageData,
-            learnerProfile,
-            userName,
-          }),
-          signal: abortControllerRef.current.signal,
+        // Call our backend tutor API
+        const response = await tutorApi.getTutorResponse({
+          subject: topic,
+          question: content.trim(),
+          mistakes: 0,
+          time_spent: 0,
+          frustration: 0,
+          recent_accuracy: learnerProfile?.averageConfidence || 0.5,
         });
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || "Failed to get response");
-        }
-
-        if (!response.body) {
-          throw new Error("No response body");
-        }
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let assistantContent = "";
         const assistantId = crypto.randomUUID();
 
-        // Add empty assistant message
+        // Add assistant message with the response
         setState((prev) => ({
           ...prev,
           messages: [
@@ -102,53 +128,13 @@ export function useChat(options: UseChatOptions) {
             {
               id: assistantId,
               role: "assistant",
-              content: "",
+              content: response.answer,
               timestamp: new Date(),
             },
           ],
+          isLoading: false,
         }));
 
-        let textBuffer = "";
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          textBuffer += decoder.decode(value, { stream: true });
-
-          let newlineIndex: number;
-          while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
-            let line = textBuffer.slice(0, newlineIndex);
-            textBuffer = textBuffer.slice(newlineIndex + 1);
-
-            if (line.endsWith("\r")) line = line.slice(0, -1);
-            if (line.startsWith(":") || line.trim() === "") continue;
-            if (!line.startsWith("data: ")) continue;
-
-            const jsonStr = line.slice(6).trim();
-            if (jsonStr === "[DONE]") break;
-
-            try {
-              const parsed = JSON.parse(jsonStr);
-              const delta = parsed.choices?.[0]?.delta?.content;
-              if (delta) {
-                assistantContent += delta;
-                setState((prev) => ({
-                  ...prev,
-                  messages: prev.messages.map((m) =>
-                    m.id === assistantId ? { ...m, content: assistantContent } : m
-                  ),
-                }));
-              }
-            } catch {
-              // Incomplete JSON, put back and wait
-              textBuffer = line + "\n" + textBuffer;
-              break;
-            }
-          }
-        }
-
-        setState((prev) => ({ ...prev, isLoading: false }));
       } catch (error) {
         if (error instanceof Error && error.name === "AbortError") {
           setState((prev) => ({ ...prev, isLoading: false }));
@@ -163,15 +149,21 @@ export function useChat(options: UseChatOptions) {
         }));
       }
     },
-    [gradeLevel, educationLevel, fieldOfStudy, subjects, learnerProfile, userName, onInteraction, state.messages]
+    [learnerProfile, onInteraction, state.messages]
   );
 
   const clearMessages = useCallback(() => {
+    clearPersistedMessages();
     setState({ messages: [], isLoading: false, error: null });
   }, []);
 
-  const setMessages = useCallback((messages: Message[]) => {
-    setState((prev) => ({ ...prev, messages }));
+  const setMessages = useCallback((messagesOrUpdater: Message[] | ((prev: Message[]) => Message[])) => {
+    setState((prev) => {
+      const newMessages = typeof messagesOrUpdater === 'function' 
+        ? messagesOrUpdater(prev.messages) 
+        : messagesOrUpdater;
+      return { ...prev, messages: newMessages };
+    });
   }, []);
 
   const cancelRequest = useCallback(() => {

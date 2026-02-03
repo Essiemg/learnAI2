@@ -11,7 +11,7 @@ import { ChatInput } from "./ChatInput";
 import { HistoryPanel } from "./HistoryPanel";
 import { LiveVoiceButton } from "./LiveVoiceButton";
 import { toast } from "sonner";
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Users, Shield, LogIn } from "lucide-react";
@@ -72,22 +72,33 @@ export function TokiChat() {
     startNewSession,
   } = useChatHistory();
 
-  // Gemini Live voice mode - handles both transcription and responses
-  const handleGeminiTranscript = useCallback(
+  // Track if greeting has been shown
+  const greetingShownRef = useRef(false);
+
+  // Live Lecture mode - handles voice transcription and AI responses
+  const handleLiveLectureTranscript = useCallback(
     (text: string, isUser: boolean) => {
-      // Add the transcript to the messages for display
-      if (isUser) {
-        // User spoke - we might want to show what they said
-        console.log("User said:", text);
-      } else {
-        // AI responded - show the text response
-        console.log("AI said:", text);
+      if (!text.trim()) return;
+      
+      // Add the transcript/response to the chat messages for display
+      const newMessage = {
+        id: `live-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+        role: isUser ? "user" as const : "assistant" as const,
+        content: text,
+        timestamp: new Date(),
+      };
+      
+      // Update messages state to show in chat
+      if (setMessages) {
+        setMessages((prev) => [...prev, newMessage]);
       }
+      
+      console.log(isUser ? "User said:" : "AI said:", text);
     },
-    []
+    [setMessages]
   );
 
-  const handleGeminiError = useCallback((error: string) => {
+  const handleLiveLectureError = useCallback((error: string) => {
     toast.error(error);
   }, []);
 
@@ -102,8 +113,8 @@ export function TokiChat() {
     educationLevel: userEducation?.education_level,
     fieldOfStudy: userEducation?.field_of_study,
     subjects: subjectNames,
-    onTranscript: handleGeminiTranscript,
-    onError: handleGeminiError,
+    onTranscript: handleLiveLectureTranscript,
+    onError: handleLiveLectureError,
   });
 
   // Auto-save chat session
@@ -116,6 +127,21 @@ export function TokiChat() {
     }
   }, [messages, user, isLoading, saveSession]);
 
+  // Show personalized greeting when chat is empty
+  useEffect(() => {
+    if (messages.length === 0 && !isLiveMode && !authLoading && !greetingShownRef.current) {
+      greetingShownRef.current = true;
+      const userName = profile?.display_name || "there";
+      const greeting = {
+        id: "greeting-" + Date.now(),
+        role: "assistant" as const,
+        content: `Hi ${userName}, I'm Toki, what do you want to learn about today?`,
+        timestamp: new Date(),
+      };
+      setMessages([greeting]);
+    }
+  }, [messages.length, isLiveMode, authLoading, profile?.display_name, setMessages]);
+
   useEffect(() => {
     if (error) {
       toast.error(error);
@@ -123,12 +149,26 @@ export function TokiChat() {
   }, [error]);
 
   const handleSend = (message: string, imageData?: string, files?: { id: string; name: string; type: string; base64: string }[]) => {
-    // For now, use imageData if provided, or the first image from files
-    const image = imageData || files?.find(f => f.type.startsWith("image/"))?.base64;
-    sendMessage(message, image);
+    // Check for files - prioritize in order: explicit imageData, image files, then other files (like PDFs)
+    let fileToSend = imageData;
+    
+    if (!fileToSend && files && files.length > 0) {
+      // First check for images
+      const imageFile = files.find(f => f.type.startsWith("image/"));
+      if (imageFile) {
+        fileToSend = imageFile.base64;
+      } else {
+        // Use the first file (could be PDF or other document)
+        // For PDFs and documents, we'll send the base64 data
+        fileToSend = files[0].base64;
+      }
+    }
+    
+    sendMessage(message, fileToSend);
   };
 
   const handleNewChat = () => {
+    greetingShownRef.current = false; // Reset greeting for new chat
     clearMessages();
     startNewSession();
     resetSessionStats(); // Reset learning analytics for new conversation
@@ -241,7 +281,14 @@ export function TokiChat() {
           />
         </div>
       </div>
-      <ChatContainer messages={messages} isLoading={isLoading} userName={profile?.display_name || ""} />
+      <ChatContainer 
+        messages={messages} 
+        isLoading={isLoading} 
+        userName={profile?.display_name || ""} 
+        isLiveMode={isLiveMode}
+        isListening={isListening}
+        isSpeaking={isSpeaking}
+      />
       <ChatInput
         onSend={handleSend}
         isLoading={isLoading}

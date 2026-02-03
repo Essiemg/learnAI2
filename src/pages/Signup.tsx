@@ -1,26 +1,62 @@
-import { useState } from "react";
+import { useState, useRef, useMemo } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Loader2, GraduationCap, Users } from "lucide-react";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Loader2, Camera, User, Check, X } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
-type UserRole = "child" | "parent";
+// Password validation requirements
+const passwordRequirements = [
+  { id: "length", label: "At least 8 characters", test: (p: string) => p.length >= 8 },
+  { id: "uppercase", label: "One uppercase letter", test: (p: string) => /[A-Z]/.test(p) },
+  { id: "lowercase", label: "One lowercase letter", test: (p: string) => /[a-z]/.test(p) },
+  { id: "number", label: "One number", test: (p: string) => /[0-9]/.test(p) },
+];
 
 export default function Signup() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
-  const [role, setRole] = useState<UserRole>("child");
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { signUp, signInWithGoogle } = useAuth();
   const navigate = useNavigate();
+
+  // Check password requirements
+  const passwordChecks = useMemo(() => {
+    return passwordRequirements.map((req) => ({
+      ...req,
+      passed: req.test(password),
+    }));
+  }, [password]);
+
+  const isPasswordValid = passwordChecks.every((check) => check.passed);
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("Image must be less than 5MB");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        setAvatarPreview(result);
+        // Store avatar in localStorage for later use
+        localStorage.setItem('pending_avatar', result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,8 +66,8 @@ export default function Signup() {
       return;
     }
 
-    if (password.length < 6) {
-      toast.error("Password must be at least 6 characters");
+    if (!isPasswordValid) {
+      toast.error("Password doesn't meet all requirements");
       return;
     }
 
@@ -40,7 +76,7 @@ export default function Signup() {
     const { error } = await signUp(
       email,
       password,
-      role,
+      "child", // Default role for students
       displayName
     );
 
@@ -50,8 +86,8 @@ export default function Signup() {
       return;
     }
 
-    toast.success("Please check your email to verify your account! 📧");
-    navigate("/login");
+    // Redirect to email verification page instead of onboarding
+    navigate("/verify-email", { state: { email } });
   };
 
   const handleGoogleSignUp = async () => {
@@ -62,6 +98,13 @@ export default function Signup() {
       setIsLoading(false);
     }
   };
+
+  const initials = displayName
+    ?.split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-b from-secondary/30 to-background">
@@ -113,44 +156,41 @@ export default function Signup() {
               </div>
             </div>
 
-            {/* Role Selection */}
-            <div className="space-y-3">
-              <Label>I am a...</Label>
-              <RadioGroup
-                value={role}
-                onValueChange={(value) => setRole(value as UserRole)}
-                className="grid grid-cols-2 gap-3"
+            {/* Profile Picture Upload */}
+            <div className="flex flex-col items-center space-y-2">
+              <Label className="text-center">Profile Picture (Optional)</Label>
+              <div 
+                className="relative cursor-pointer group"
+                onClick={() => fileInputRef.current?.click()}
               >
-                <div>
-                  <RadioGroupItem value="child" id="child" className="peer sr-only" />
-                  <Label
-                    htmlFor="child"
-                    className="flex flex-col items-center justify-center rounded-lg border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
-                  >
-                    <GraduationCap className="mb-2 h-6 w-6" />
-                    <span className="font-medium">Student</span>
-                  </Label>
+                <Avatar className="h-20 w-20 border-2 border-dashed border-muted-foreground/50 group-hover:border-primary transition-colors">
+                  {avatarPreview ? (
+                    <AvatarImage src={avatarPreview} alt="Profile preview" />
+                  ) : (
+                    <AvatarFallback className="bg-muted text-muted-foreground">
+                      {initials || <User className="h-8 w-8" />}
+                    </AvatarFallback>
+                  )}
+                </Avatar>
+                <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Camera className="h-6 w-6 text-white" />
                 </div>
-                <div>
-                  <RadioGroupItem value="parent" id="parent" className="peer sr-only" />
-                  <Label
-                    htmlFor="parent"
-                    className="flex flex-col items-center justify-center rounded-lg border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
-                  >
-                    <Users className="mb-2 h-6 w-6" />
-                    <span className="font-medium">Parent</span>
-                  </Label>
-                </div>
-              </RadioGroup>
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarChange}
+                className="hidden"
+              />
+              <p className="text-xs text-muted-foreground">Click to upload</p>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="displayName">
-                {role === "child" ? "What should we call you?" : "Your Name"}
-              </Label>
+              <Label htmlFor="displayName">What should we call you?</Label>
               <Input
                 id="displayName"
-                placeholder={role === "child" ? "e.g., Alex" : "e.g., Sarah"}
+                placeholder="e.g., Alex"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 required
@@ -181,7 +221,32 @@ export default function Signup() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 disabled={isLoading}
+                className={cn(
+                  password && !isPasswordValid && "border-orange-500 focus-visible:ring-orange-500",
+                  password && isPasswordValid && "border-green-500 focus-visible:ring-green-500"
+                )}
               />
+              {/* Password Requirements Checklist */}
+              {password && (
+                <div className="mt-2 space-y-1">
+                  {passwordChecks.map((check) => (
+                    <div
+                      key={check.id}
+                      className={cn(
+                        "flex items-center gap-2 text-xs",
+                        check.passed ? "text-green-600 dark:text-green-400" : "text-muted-foreground"
+                      )}
+                    >
+                      {check.passed ? (
+                        <Check className="h-3 w-3" />
+                      ) : (
+                        <X className="h-3 w-3" />
+                      )}
+                      {check.label}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">

@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { flashcardApi, FlashcardSession as ApiFlashcardSession } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
-import { Json } from "@/integrations/supabase/types";
 
 interface Flashcard {
   id: string;
@@ -34,21 +33,15 @@ export function useFlashcardHistory() {
 
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("flashcard_sessions")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("updated_at", { ascending: false });
+      const data = await flashcardApi.getSessions();
 
-      if (error) throw error;
-
-      const formatted: FlashcardSession[] = (data || []).map((s) => ({
+      const formatted: FlashcardSession[] = data.map((s) => ({
         id: s.id,
         topic: s.topic,
         cards: parseCards(s.cards),
         current_index: s.current_index,
         created_at: s.created_at,
-        updated_at: s.updated_at,
+        updated_at: s.created_at,
       }));
 
       setSessions(formatted);
@@ -59,7 +52,7 @@ export function useFlashcardHistory() {
     }
   }, [user]);
 
-  const parseCards = (json: Json): Flashcard[] => {
+  const parseCards = (json: any[]): Flashcard[] => {
     if (!Array.isArray(json)) return [];
     return json.map((c: any, idx) => ({
       id: c.id || `card-${idx}`,
@@ -72,50 +65,17 @@ export function useFlashcardHistory() {
     async (topic: string, cards: Flashcard[], currentIndex: number) => {
       if (!user || cards.length === 0) return null;
 
-      const cardsJson = cards.map((c) => ({
-        id: c.id,
-        front: c.front,
-        back: c.back,
-      }));
-
       try {
-        // Check if session for this topic exists
-        const { data: existing } = await supabase
-          .from("flashcard_sessions")
-          .select("id")
-          .eq("user_id", user.id)
-          .eq("topic", topic)
-          .single();
-
-        if (existing) {
-          const { error } = await supabase
-            .from("flashcard_sessions")
-            .update({
-              cards: cardsJson as Json,
-              current_index: currentIndex,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", existing.id);
-
-          if (error) throw error;
-          await loadSessions();
-          return existing.id;
-        } else {
-          const { data, error } = await supabase
-            .from("flashcard_sessions")
-            .insert({
-              user_id: user.id,
-              topic,
-              cards: cardsJson as Json,
-              current_index: currentIndex,
-            })
-            .select()
-            .single();
-
-          if (error) throw error;
-          await loadSessions();
-          return data.id;
+        // Generate new flashcards via API
+        const session = await flashcardApi.generate(topic, cards.length || 10);
+        
+        // Update index if needed
+        if (currentIndex > 0) {
+          await flashcardApi.updateIndex(session.id, currentIndex);
         }
+        
+        await loadSessions();
+        return session.id;
       } catch (error) {
         console.error("Error saving flashcard session:", error);
         return null;
@@ -134,12 +94,7 @@ export function useFlashcardHistory() {
   const deleteSession = useCallback(
     async (sessionId: string) => {
       try {
-        const { error } = await supabase
-          .from("flashcard_sessions")
-          .delete()
-          .eq("id", sessionId);
-
-        if (error) throw error;
+        await flashcardApi.deleteSession(sessionId);
         await loadSessions();
         return true;
       } catch (error) {

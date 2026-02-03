@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { quizApi, QuizSession as ApiQuizSession } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
-import { Json } from "@/integrations/supabase/types";
 
 interface Question {
   id: string;
@@ -38,23 +37,17 @@ export function useQuizHistory() {
 
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("quiz_sessions")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("updated_at", { ascending: false });
+      const data = await quizApi.getSessions();
 
-      if (error) throw error;
-
-      const formatted: QuizSession[] = (data || []).map((s) => ({
+      const formatted: QuizSession[] = data.map((s) => ({
         id: s.id,
         topic: s.topic,
         questions: parseQuestions(s.questions),
         answers: parseAnswers(s.answers),
-        score: s.score,
-        is_completed: s.is_completed,
+        score: s.score || null,
+        is_completed: s.completed,
         created_at: s.created_at,
-        updated_at: s.updated_at,
+        updated_at: s.created_at,
       }));
 
       setSessions(formatted);
@@ -65,19 +58,27 @@ export function useQuizHistory() {
     }
   }, [user]);
 
-  const parseQuestions = (json: Json): Question[] => {
+  const parseQuestions = (json: any[]): Question[] => {
     if (!Array.isArray(json)) return [];
     return json.map((q: any, idx) => ({
       id: q.id || `q-${idx}`,
       question: q.question,
       options: q.options || [],
-      correctAnswer: q.correctAnswer,
-      explanation: q.explanation,
+      correctAnswer: q.correct_answer || q.correctAnswer || 0,
+      explanation: q.explanation || "",
     }));
   };
 
-  const parseAnswers = (json: Json): Record<string, number> => {
-    if (typeof json !== "object" || json === null || Array.isArray(json)) return {};
+  const parseAnswers = (json: any): Record<string, number> => {
+    if (Array.isArray(json)) {
+      // Convert array of answers to record
+      const record: Record<string, number> = {};
+      json.forEach((answer, idx) => {
+        record[`q-${idx}`] = answer;
+      });
+      return record;
+    }
+    if (typeof json !== "object" || json === null) return {};
     return json as Record<string, number>;
   };
 
@@ -91,31 +92,18 @@ export function useQuizHistory() {
     ) => {
       if (!user || questions.length === 0) return null;
 
-      const questionsJson = questions.map((q) => ({
-        id: q.id,
-        question: q.question,
-        options: q.options,
-        correctAnswer: q.correctAnswer,
-        explanation: q.explanation,
-      }));
-
       try {
-        const { data, error } = await supabase
-          .from("quiz_sessions")
-          .insert({
-            user_id: user.id,
-            topic,
-            questions: questionsJson as Json,
-            answers: answers as unknown as Json,
-            score,
-            is_completed: isCompleted,
-          })
-          .select()
-          .single();
-
-        if (error) throw error;
+        // Generate quiz via API
+        const session = await quizApi.generate(topic, questions.length || 5);
+        
+        // If there are answers to submit
+        if (isCompleted && Object.keys(answers).length > 0) {
+          const answerArray = questions.map((q) => answers[q.id] || 0);
+          await quizApi.submit(session.id, answerArray);
+        }
+        
         await loadSessions();
-        return data.id;
+        return session.id;
       } catch (error) {
         console.error("Error saving quiz session:", error);
         return null;
@@ -132,17 +120,14 @@ export function useQuizHistory() {
       isCompleted: boolean
     ) => {
       try {
-        const { error } = await supabase
-          .from("quiz_sessions")
-          .update({
-            answers: answers as unknown as Json,
-            score,
-            is_completed: isCompleted,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", sessionId);
-
-        if (error) throw error;
+        if (isCompleted) {
+          // Convert answers record to array
+          const session = sessions.find(s => s.id === sessionId);
+          if (session) {
+            const answerArray = session.questions.map((q) => answers[q.id] || 0);
+            await quizApi.submit(sessionId, answerArray);
+          }
+        }
         await loadSessions();
         return true;
       } catch (error) {
@@ -150,7 +135,7 @@ export function useQuizHistory() {
         return false;
       }
     },
-    [loadSessions]
+    [loadSessions, sessions]
   );
 
   const loadSession = useCallback(
@@ -163,12 +148,7 @@ export function useQuizHistory() {
   const deleteSession = useCallback(
     async (sessionId: string) => {
       try {
-        const { error } = await supabase
-          .from("quiz_sessions")
-          .delete()
-          .eq("id", sessionId);
-
-        if (error) throw error;
+        await quizApi.deleteQuiz(sessionId);
         await loadSessions();
         return true;
       } catch (error) {

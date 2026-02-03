@@ -1,11 +1,12 @@
+import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { EDUCATION_LEVELS, type EducationLevel } from '@/types/education';
-import { BookOpen, GraduationCap, School } from 'lucide-react';
+import { BookOpen, GraduationCap, School, Loader2 } from 'lucide-react';
 
 const LEVEL_ICONS: Record<EducationLevel, React.ReactNode> = {
   primary: <School className="h-8 w-8" />,
   high_school: <BookOpen className="h-8 w-8" />,
-  undergraduate: <GraduationCap className="h-8 w-8" />,
+  college: <GraduationCap className="h-8 w-8" />,
 };
 
 interface EducationLevelStepProps {
@@ -14,6 +15,13 @@ interface EducationLevelStepProps {
 }
 
 export function EducationLevelStep({ userName, onSelect }: EducationLevelStepProps) {
+  const [selectedLevel, setSelectedLevel] = useState<EducationLevel | null>(null);
+
+  const handleSelect = (level: EducationLevel) => {
+    setSelectedLevel(level);
+    onSelect(level);
+  };
+
   return (
     <Card className="border-0 shadow-xl bg-card/95 backdrop-blur">
       <CardHeader className="text-center pb-2">
@@ -29,11 +37,12 @@ export function EducationLevelStep({ userName, onSelect }: EducationLevelStepPro
         {EDUCATION_LEVELS.map((level) => (
           <button
             key={level.value}
-            onClick={() => onSelect(level.value)}
-            className="w-full p-4 rounded-xl border-2 border-border bg-background hover:border-primary hover:bg-primary/5 transition-all duration-200 text-left flex items-center gap-4 group"
+            onClick={() => handleSelect(level.value)}
+            disabled={selectedLevel !== null}
+            className="w-full p-4 rounded-xl border-2 border-border bg-background hover:border-primary hover:bg-primary/5 transition-all duration-200 text-left flex items-center gap-4 group disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <div className="p-3 rounded-xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-              {LEVEL_ICONS[level.value]}
+              {selectedLevel === level.value ? <Loader2 className="h-8 w-8 animate-spin" /> : LEVEL_ICONS[level.value]}
             </div>
             <div>
               <h3 className="font-semibold text-lg">{level.label}</h3>

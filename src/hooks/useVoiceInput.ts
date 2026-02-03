@@ -86,9 +86,21 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
         shouldRestartRef.current = false;
         options.onError?.("Microphone access denied. Please enable it in your browser settings.");
       } else if (event.error === "network") {
-        options.onError?.("Network error. Please check your connection.");
+        // Network error - the Web Speech API requires internet connection
+        // It sends audio to cloud servers for processing
+        setIsListening(false);
+        shouldRestartRef.current = false;
+        options.onError?.("Speech recognition requires an internet connection. Please check your network and try again.");
+      } else if (event.error === "audio-capture") {
+        setIsListening(false);
+        shouldRestartRef.current = false;
+        options.onError?.("No microphone detected. Please connect a microphone and try again.");
+      } else if (event.error === "service-not-allowed") {
+        setIsListening(false);
+        shouldRestartRef.current = false;
+        options.onError?.("Speech recognition service is not allowed. Please check your browser settings.");
       } else {
-        options.onError?.("Voice input error. Please try again.");
+        options.onError?.("Voice input error: " + event.error + ". Please try again.");
       }
     };
 

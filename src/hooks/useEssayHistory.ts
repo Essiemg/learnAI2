@@ -1,7 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Json } from "@/integrations/supabase/types";
 
 interface EssayFeedback {
   overallScore: number;
@@ -25,6 +23,8 @@ interface EssaySubmission {
   created_at: string;
 }
 
+const STORAGE_KEY = "learnai_essay_history";
+
 export function useEssayHistory() {
   const { user } = useAuth();
   const [submissions, setSubmissions] = useState<EssaySubmission[]>([]);
@@ -33,6 +33,8 @@ export function useEssayHistory() {
   useEffect(() => {
     if (user) {
       loadSubmissions();
+    } else {
+      setSubmissions([]);
     }
   }, [user]);
 
@@ -41,43 +43,25 @@ export function useEssayHistory() {
 
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("essay_submissions")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-
-      const formatted: EssaySubmission[] = (data || []).map((s) => ({
-        id: s.id,
-        title: s.title,
-        topic: s.topic,
-        content: s.content,
-        feedback: parseFeedback(s.feedback),
-        overall_score: s.overall_score,
-        created_at: s.created_at,
-      }));
-
-      setSubmissions(formatted);
+      const stored = localStorage.getItem(`${STORAGE_KEY}_${user.id}`);
+      const data = stored ? JSON.parse(stored) : [];
+      setSubmissions(data);
     } catch (error) {
       console.error("Error loading essay submissions:", error);
+      setSubmissions([]);
     } finally {
       setIsLoading(false);
     }
   }, [user]);
 
-  const parseFeedback = (json: Json): EssayFeedback | null => {
-    if (!json || typeof json !== "object" || Array.isArray(json)) return null;
-    const f = json as Record<string, any>;
-    return {
-      overallScore: f.overallScore || 0,
-      categories: f.categories || [],
-      strengths: f.strengths || [],
-      improvements: f.improvements || [],
-      detailedFeedback: f.detailedFeedback || "",
-    };
-  };
+  const saveSubmissions = useCallback(
+    (newSubmissions: EssaySubmission[]) => {
+      if (!user) return;
+      localStorage.setItem(`${STORAGE_KEY}_${user.id}`, JSON.stringify(newSubmissions));
+      setSubmissions(newSubmissions);
+    },
+    [user]
+  );
 
   const saveSubmission = useCallback(
     async (
@@ -89,28 +73,25 @@ export function useEssayHistory() {
       if (!user) return null;
 
       try {
-        const { data, error } = await supabase
-          .from("essay_submissions")
-          .insert({
-            user_id: user.id,
-            title,
-            topic,
-            content,
-            feedback: feedback as unknown as Json,
-            overall_score: feedback.overallScore,
-          })
-          .select()
-          .single();
+        const newSubmission: EssaySubmission = {
+          id: `essay-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          title,
+          topic,
+          content,
+          feedback,
+          overall_score: feedback.overallScore,
+          created_at: new Date().toISOString(),
+        };
 
-        if (error) throw error;
-        await loadSubmissions();
-        return data.id;
+        const newSubmissions = [newSubmission, ...submissions];
+        saveSubmissions(newSubmissions);
+        return newSubmission.id;
       } catch (error) {
         console.error("Error saving essay submission:", error);
         return null;
       }
     },
-    [user, loadSubmissions]
+    [user, submissions, saveSubmissions]
   );
 
   const loadSubmission = useCallback(
@@ -123,20 +104,15 @@ export function useEssayHistory() {
   const deleteSubmission = useCallback(
     async (submissionId: string) => {
       try {
-        const { error } = await supabase
-          .from("essay_submissions")
-          .delete()
-          .eq("id", submissionId);
-
-        if (error) throw error;
-        await loadSubmissions();
+        const newSubmissions = submissions.filter((s) => s.id !== submissionId);
+        saveSubmissions(newSubmissions);
         return true;
       } catch (error) {
         console.error("Error deleting submission:", error);
         return false;
       }
     },
-    [loadSubmissions]
+    [submissions, saveSubmissions]
   );
 
   return {

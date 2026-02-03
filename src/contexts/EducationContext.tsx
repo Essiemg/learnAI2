@@ -13,8 +13,12 @@ interface EducationContextType {
   saveEducation: (
     educationLevel: EducationLevel,
     fieldOfStudy: string | null,
-    selectedSubjectIds: string[]
+    selectedSubjectIds: string[],
+    gradeLevel?: number | null,
+    collegeYear?: number | null,
+    major?: string | null
   ) => Promise<{ error: Error | null }>;
+  updateEducationDetails: (updates: Partial<Pick<UserEducation, 'grade_level' | 'college_year' | 'major' | 'field_of_study'>>) => Promise<{ error: Error | null }>;
   refreshEducation: () => Promise<void>;
 }
 

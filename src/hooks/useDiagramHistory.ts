@@ -1,5 +1,4 @@
 import { useState, useCallback, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface Diagram {
@@ -13,6 +12,8 @@ interface Diagram {
   updated_at: string;
 }
 
+const STORAGE_KEY = "learnai_diagram_history";
+
 export function useDiagramHistory() {
   const { user } = useAuth();
   const [diagrams, setDiagrams] = useState<Diagram[]>([]);
@@ -21,6 +22,8 @@ export function useDiagramHistory() {
   useEffect(() => {
     if (user) {
       loadDiagrams();
+    } else {
+      setDiagrams([]);
     }
   }, [user]);
 
@@ -29,21 +32,25 @@ export function useDiagramHistory() {
 
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("diagrams")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("updated_at", { ascending: false });
-
-      if (error) throw error;
-
-      setDiagrams(data || []);
+      const stored = localStorage.getItem(`${STORAGE_KEY}_${user.id}`);
+      const data = stored ? JSON.parse(stored) : [];
+      setDiagrams(data);
     } catch (error) {
       console.error("Error loading diagrams:", error);
+      setDiagrams([]);
     } finally {
       setIsLoading(false);
     }
   }, [user]);
+
+  const saveDiagramsLocal = useCallback(
+    (newDiagrams: Diagram[]) => {
+      if (!user) return;
+      localStorage.setItem(`${STORAGE_KEY}_${user.id}`, JSON.stringify(newDiagrams));
+      setDiagrams(newDiagrams);
+    },
+    [user]
+  );
 
   const saveDiagram = useCallback(
     async (
@@ -56,47 +63,41 @@ export function useDiagramHistory() {
       if (!user || !mermaidCode) return null;
 
       try {
-        const { data, error } = await supabase
-          .from("diagrams")
-          .insert({
-            user_id: user.id,
-            mermaid_code: mermaidCode,
-            diagram_type: diagramType,
-            title: title || null,
-            source_text: sourceText || null,
-            material_id: materialId || null,
-          })
-          .select()
-          .single();
+        const now = new Date().toISOString();
+        const newDiagram: Diagram = {
+          id: `diagram-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          title: title || null,
+          source_text: sourceText || null,
+          diagram_type: diagramType,
+          mermaid_code: mermaidCode,
+          material_id: materialId || null,
+          created_at: now,
+          updated_at: now,
+        };
 
-        if (error) throw error;
-        await loadDiagrams();
-        return data.id;
+        const newDiagrams = [newDiagram, ...diagrams];
+        saveDiagramsLocal(newDiagrams);
+        return newDiagram.id;
       } catch (error) {
         console.error("Error saving diagram:", error);
         return null;
       }
     },
-    [user, loadDiagrams]
+    [user, diagrams, saveDiagramsLocal]
   );
 
   const deleteDiagram = useCallback(
     async (diagramId: string) => {
       try {
-        const { error } = await supabase
-          .from("diagrams")
-          .delete()
-          .eq("id", diagramId);
-
-        if (error) throw error;
-        await loadDiagrams();
+        const newDiagrams = diagrams.filter((d) => d.id !== diagramId);
+        saveDiagramsLocal(newDiagrams);
         return true;
       } catch (error) {
         console.error("Error deleting diagram:", error);
         return false;
       }
     },
-    [loadDiagrams]
+    [diagrams, saveDiagramsLocal]
   );
 
   const getDiagram = useCallback(

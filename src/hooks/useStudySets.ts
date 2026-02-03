@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface StudySet {
@@ -20,7 +19,11 @@ interface Material {
   study_set_id: string | null;
   source_url: string | null;
   created_at: string;
+  base64_data?: string;
 }
+
+const STUDY_SETS_KEY = "learnai_study_sets";
+const MATERIALS_KEY = "learnai_materials";
 
 export function useStudySets() {
   const { user } = useAuth();
@@ -35,15 +38,12 @@ export function useStudySets() {
     }
 
     try {
-      const { data, error } = await supabase
-        .from("study_sets")
-        .select("*")
-        .order("updated_at", { ascending: false });
-
-      if (error) throw error;
-      setStudySets(data || []);
+      const stored = localStorage.getItem(`${STUDY_SETS_KEY}_${user.id}`);
+      const data = stored ? JSON.parse(stored) : [];
+      setStudySets(data);
     } catch (e) {
       console.error("Error fetching study sets:", e);
+      setStudySets([]);
     }
   }, [user]);
 
@@ -54,15 +54,12 @@ export function useStudySets() {
     }
 
     try {
-      const { data, error } = await supabase
-        .from("uploaded_materials")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setMaterials(data || []);
+      const stored = localStorage.getItem(`${MATERIALS_KEY}_${user.id}`);
+      const data = stored ? JSON.parse(stored) : [];
+      setMaterials(data);
     } catch (e) {
       console.error("Error fetching materials:", e);
+      setMaterials([]);
     }
   }, [user]);
 
@@ -76,23 +73,38 @@ export function useStudySets() {
     refresh();
   }, [refresh]);
 
+  const saveStudySetsLocal = useCallback(
+    (newSets: StudySet[]) => {
+      if (!user) return;
+      localStorage.setItem(`${STUDY_SETS_KEY}_${user.id}`, JSON.stringify(newSets));
+      setStudySets(newSets);
+    },
+    [user]
+  );
+
+  const saveMaterialsLocal = useCallback(
+    (newMaterials: Material[]) => {
+      if (!user) return;
+      localStorage.setItem(`${MATERIALS_KEY}_${user.id}`, JSON.stringify(newMaterials));
+      setMaterials(newMaterials);
+    },
+    [user]
+  );
+
   const createStudySet = async (name: string, description?: string) => {
     if (!user) return null;
 
     try {
-      const { data, error } = await supabase
-        .from("study_sets")
-        .insert({
-          user_id: user.id,
-          name,
-          description: description || null,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      setStudySets((prev) => [data, ...prev]);
-      return data;
+      const now = new Date().toISOString();
+      const newSet: StudySet = {
+        id: `set-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        name,
+        description: description || null,
+        created_at: now,
+        updated_at: now,
+      };
+      saveStudySetsLocal([newSet, ...studySets]);
+      return newSet;
     } catch (e) {
       console.error("Error creating study set:", e);
       return null;
@@ -101,16 +113,11 @@ export function useStudySets() {
 
   const updateStudySet = async (id: string, updates: { name?: string; description?: string }) => {
     try {
-      const { data, error } = await supabase
-        .from("study_sets")
-        .update(updates)
-        .eq("id", id)
-        .select()
-        .single();
-
-      if (error) throw error;
-      setStudySets((prev) => prev.map((s) => (s.id === id ? data : s)));
-      return data;
+      const updatedSets = studySets.map((s) =>
+        s.id === id ? { ...s, ...updates, updated_at: new Date().toISOString() } : s
+      );
+      saveStudySetsLocal(updatedSets);
+      return updatedSets.find((s) => s.id === id) || null;
     } catch (e) {
       console.error("Error updating study set:", e);
       return null;
@@ -119,19 +126,15 @@ export function useStudySets() {
 
   const deleteStudySet = async (id: string) => {
     try {
-      // First, unlink all materials from this set
-      await supabase
-        .from("uploaded_materials")
-        .update({ study_set_id: null })
-        .eq("study_set_id", id);
-
-      const { error } = await supabase.from("study_sets").delete().eq("id", id);
-      if (error) throw error;
-
-      setStudySets((prev) => prev.filter((s) => s.id !== id));
-      setMaterials((prev) =>
-        prev.map((m) => (m.study_set_id === id ? { ...m, study_set_id: null } : m))
+      // Unlink materials from this set
+      const updatedMaterials = materials.map((m) =>
+        m.study_set_id === id ? { ...m, study_set_id: null } : m
       );
+      saveMaterialsLocal(updatedMaterials);
+
+      // Delete the set
+      const newSets = studySets.filter((s) => s.id !== id);
+      saveStudySetsLocal(newSets);
       return true;
     } catch (e) {
       console.error("Error deleting study set:", e);
@@ -143,33 +146,32 @@ export function useStudySets() {
     if (!user) return null;
 
     try {
-      const fileId = crypto.randomUUID();
+      const fileId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       const filePath = `${user.id}/${fileId}-${file.name}`;
 
-      // Upload to storage
-      const { error: uploadError } = await supabase.storage
-        .from("study-materials")
-        .upload(filePath, file);
+      // Convert file to base64
+      const base64Data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
 
-      if (uploadError) throw uploadError;
+      const newMaterial: Material = {
+        id: fileId,
+        file_name: file.name,
+        file_path: filePath,
+        file_type: file.type,
+        file_size: file.size,
+        extracted_text: null,
+        study_set_id: studySetId || null,
+        source_url: null,
+        created_at: new Date().toISOString(),
+        base64_data: base64Data,
+      };
 
-      // Save to database
-      const { data, error } = await supabase
-        .from("uploaded_materials")
-        .insert({
-          user_id: user.id,
-          file_name: file.name,
-          file_path: filePath,
-          file_type: file.type,
-          file_size: file.size,
-          study_set_id: studySetId || null,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      setMaterials((prev) => [data, ...prev]);
-      return data;
+      saveMaterialsLocal([newMaterial, ...materials]);
+      return newMaterial;
     } catch (e) {
       console.error("Error uploading material:", e);
       return null;
@@ -178,15 +180,10 @@ export function useStudySets() {
 
   const moveMaterial = async (materialId: string, studySetId: string | null) => {
     try {
-      const { data, error } = await supabase
-        .from("uploaded_materials")
-        .update({ study_set_id: studySetId })
-        .eq("id", materialId)
-        .select()
-        .single();
-
-      if (error) throw error;
-      setMaterials((prev) => prev.map((m) => (m.id === materialId ? data : m)));
+      const updatedMaterials = materials.map((m) =>
+        m.id === materialId ? { ...m, study_set_id: studySetId } : m
+      );
+      saveMaterialsLocal(updatedMaterials);
       return true;
     } catch (e) {
       console.error("Error moving material:", e);
@@ -194,13 +191,10 @@ export function useStudySets() {
     }
   };
 
-  const deleteMaterial = async (id: string, filePath: string) => {
+  const deleteMaterial = async (id: string, _filePath: string) => {
     try {
-      await supabase.storage.from("study-materials").remove([filePath]);
-      const { error } = await supabase.from("uploaded_materials").delete().eq("id", id);
-      if (error) throw error;
-
-      setMaterials((prev) => prev.filter((m) => m.id !== id));
+      const newMaterials = materials.filter((m) => m.id !== id);
+      saveMaterialsLocal(newMaterials);
       return true;
     } catch (e) {
       console.error("Error deleting material:", e);
@@ -216,46 +210,27 @@ export function useStudySets() {
   };
 
   const getMaterialBase64 = async (material: Material): Promise<string | null> => {
-    try {
-      const { data, error } = await supabase.storage
-        .from("study-materials")
-        .download(material.file_path);
-
-      if (error) throw error;
-
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.onerror = () => resolve(null);
-        reader.readAsDataURL(data);
-      });
-    } catch (e) {
-      console.error("Error getting material base64:", e);
-      return null;
-    }
+    return material.base64_data || null;
   };
 
   const addLinkMaterial = async (url: string, name: string, studySetId?: string) => {
     if (!user) return null;
 
     try {
-      const { data, error } = await supabase
-        .from("uploaded_materials")
-        .insert({
-          user_id: user.id,
-          file_name: name,
-          file_path: "", // No file path for links
-          file_type: "link",
-          file_size: null,
-          source_url: url,
-          study_set_id: studySetId || null,
-        })
-        .select()
-        .single();
+      const newMaterial: Material = {
+        id: `link-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        file_name: name,
+        file_path: "",
+        file_type: "link",
+        file_size: null,
+        extracted_text: null,
+        source_url: url,
+        study_set_id: studySetId || null,
+        created_at: new Date().toISOString(),
+      };
 
-      if (error) throw error;
-      setMaterials((prev) => [data, ...prev]);
-      return data;
+      saveMaterialsLocal([newMaterial, ...materials]);
+      return newMaterial;
     } catch (e) {
       console.error("Error adding link material:", e);
       return null;

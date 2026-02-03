@@ -1,9 +1,10 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { EducationLevel } from "@/types/education";
 
-const SUPABASE_PROJECT_ID = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+// Use WebSocket URL from environment or default to localhost
+const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000';
 
-interface UseGeminiLiveOptions {
+interface UseLiveLectureOptions {
   gradeLevel: number;
   educationLevel?: EducationLevel;
   fieldOfStudy?: string | null;
@@ -16,6 +17,37 @@ interface AudioQueueItem {
   data: Uint8Array;
 }
 
+// Browser TTS helper - used when server TTS is too slow
+function speakWithBrowserTTS(text: string, onStart?: () => void, onEnd?: () => void) {
+  // Cancel any ongoing speech
+  window.speechSynthesis.cancel();
+  
+  const cleanText = text
+    .replace(/[^\w\s.,!?'"()-:;\n]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  
+  if (!cleanText || cleanText.length < 2) return;
+  
+  const utterance = new SpeechSynthesisUtterance(cleanText);
+  utterance.rate = 1.0;
+  utterance.pitch = 1.0;
+  
+  utterance.onstart = () => onStart?.();
+  utterance.onend = () => onEnd?.();
+  utterance.onerror = () => onEnd?.();
+  
+  window.speechSynthesis.speak(utterance);
+}
+
+/**
+ * Hook for live lecture mode - real-time voice conversation with AI tutor.
+ * 
+ * This connects to the backend WebSocket endpoint for:
+ * - Streaming audio from microphone to server
+ * - Receiving transcribed user speech
+ * - Receiving AI responses (text + audio)
+ */
 export function useGeminiLive({ 
   gradeLevel, 
   educationLevel, 
@@ -23,7 +55,7 @@ export function useGeminiLive({
   subjects, 
   onTranscript, 
   onError 
-}: UseGeminiLiveOptions) {
+}: UseLiveLectureOptions) {
   const [isConnected, setIsConnected] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -36,6 +68,11 @@ export function useGeminiLive({
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const audioQueueRef = useRef<AudioQueueItem[]>([]);
   const isPlayingRef = useRef(false);
+  const silenceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastAudioTimeRef = useRef<number>(0);
+  const hasAudioRef = useRef(false);
+  const pendingTextRef = useRef<string | null>(null);
+  const audioTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Create WAV from PCM data for playback
   const createWavFromPCM = useCallback((pcmData: Uint8Array): ArrayBuffer => {
@@ -173,8 +210,38 @@ export function useGeminiLive({
       processorRef.current.onaudioprocess = (e) => {
         if (wsRef.current?.readyState === WebSocket.OPEN && isListening) {
           const inputData = e.inputBuffer.getChannelData(0);
+          
+          // Check if there's actual audio (not silence)
+          const maxAmplitude = Math.max(...Array.from(inputData).map(Math.abs));
+          const hasSound = maxAmplitude > 0.01; // Threshold for detecting speech
+          
+          if (hasSound) {
+            hasAudioRef.current = true;
+            lastAudioTimeRef.current = Date.now();
+            
+            // Clear any pending silence timeout
+            if (silenceTimeoutRef.current) {
+              clearTimeout(silenceTimeoutRef.current);
+              silenceTimeoutRef.current = null;
+            }
+          }
+          
+          // Send audio to server
           const encoded = encodeAudioForAPI(new Float32Array(inputData));
           wsRef.current.send(JSON.stringify({ type: "audio", data: encoded }));
+          
+          // Check for silence after speech (1.5 seconds of silence = end of turn)
+          if (hasAudioRef.current && !hasSound && !silenceTimeoutRef.current && !isProcessing) {
+            silenceTimeoutRef.current = setTimeout(() => {
+              if (wsRef.current?.readyState === WebSocket.OPEN && hasAudioRef.current) {
+                console.log("Silence detected, sending end_turn");
+                wsRef.current.send(JSON.stringify({ type: "end_turn" }));
+                hasAudioRef.current = false;
+                setIsProcessing(true);
+              }
+              silenceTimeoutRef.current = null;
+            }, 1500);
+          }
         }
       };
 
@@ -182,15 +249,23 @@ export function useGeminiLive({
       processorRef.current.connect(audioContext.destination);
 
       setIsListening(true);
+      hasAudioRef.current = false;
       console.log("Microphone started");
     } catch (error) {
       console.error("Error starting microphone:", error);
       onError?.("Failed to access microphone. Please check permissions.");
     }
-  }, [encodeAudioForAPI, isListening, onError]);
+  }, [encodeAudioForAPI, isListening, isProcessing, onError]);
 
   // Stop microphone capture
   const stopMicrophone = useCallback(() => {
+    // Clear silence detection timeout
+    if (silenceTimeoutRef.current) {
+      clearTimeout(silenceTimeoutRef.current);
+      silenceTimeoutRef.current = null;
+    }
+    hasAudioRef.current = false;
+    
     if (sourceRef.current) {
       sourceRef.current.disconnect();
       sourceRef.current = null;
@@ -207,7 +282,7 @@ export function useGeminiLive({
     console.log("Microphone stopped");
   }, []);
 
-  // Connect to Gemini Live
+  // Connect to Live Lecture WebSocket
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       console.log("Already connected");
@@ -222,14 +297,14 @@ export function useGeminiLive({
     if (fieldOfStudy) params.append("fieldOfStudy", fieldOfStudy);
     if (subjects && subjects.length > 0) params.append("subjects", subjects.join(","));
 
-    const wsUrl = `wss://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/gemini-live?${params.toString()}`;
-    console.log("Connecting to:", wsUrl);
+    const wsUrl = `${WS_URL}/ws/live-lecture?${params.toString()}`;
+    console.log("Connecting to Live Lecture:", wsUrl);
 
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
     ws.onopen = () => {
-      console.log("WebSocket connected to edge function");
+      console.log("WebSocket connected to Live Lecture");
     };
 
     ws.onmessage = (event) => {
@@ -245,11 +320,46 @@ export function useGeminiLive({
             break;
 
           case "audio":
+            // Clear the fallback timeout since we received audio
+            if (audioTimeoutRef.current) {
+              clearTimeout(audioTimeoutRef.current);
+              audioTimeoutRef.current = null;
+            }
+            pendingTextRef.current = null;
             queueAudio(message.data);
             break;
 
           case "text":
-            onTranscript?.(message.data, false);
+            // AI response text - store it and start a fallback timer
+            onTranscript?.(message.data, message.isUser === true);
+            
+            // If this is AI text (not user), set up fallback to browser TTS
+            if (!message.isUser) {
+              pendingTextRef.current = message.data;
+              
+              // Clear any existing timeout
+              if (audioTimeoutRef.current) {
+                clearTimeout(audioTimeoutRef.current);
+              }
+              
+              // If no audio arrives in 2 seconds, use browser TTS
+              audioTimeoutRef.current = setTimeout(() => {
+                if (pendingTextRef.current) {
+                  console.log("No server audio received, using browser TTS");
+                  speakWithBrowserTTS(
+                    pendingTextRef.current,
+                    () => setIsSpeaking(true),
+                    () => setIsSpeaking(false)
+                  );
+                  pendingTextRef.current = null;
+                }
+              }, 2000);
+            }
+            break;
+
+          case "user_text":
+            // Transcribed user speech
+            onTranscript?.(message.data, true);
             break;
 
           case "turn_complete":
@@ -258,6 +368,7 @@ export function useGeminiLive({
 
           case "interrupted":
             audioQueueRef.current = [];
+            window.speechSynthesis.cancel(); // Also cancel browser TTS
             setIsSpeaking(false);
             break;
 
@@ -289,6 +400,14 @@ export function useGeminiLive({
   const disconnect = useCallback(() => {
     stopMicrophone();
     audioQueueRef.current = [];
+    
+    // Clear browser TTS fallback timeout
+    if (audioTimeoutRef.current) {
+      clearTimeout(audioTimeoutRef.current);
+      audioTimeoutRef.current = null;
+    }
+    pendingTextRef.current = null;
+    window.speechSynthesis.cancel();
 
     if (wsRef.current) {
       wsRef.current.close();

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { MaterialSelector } from "@/components/MaterialSelector";
-import { supabase } from "@/integrations/supabase/client";
+import { summaryApi } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { useSummaryHistory } from "@/hooks/useSummaryHistory";
@@ -66,21 +66,13 @@ export default function Summarize() {
     setCurrentTitle(title);
 
     try {
-      const { data, error } = await supabase.functions.invoke("generate-content", {
-        body: {
-          type: "summary",
-          content: contentToSummarize,
-          isBase64,
-        },
-      });
+      const result = await summaryApi.generate(contentToSummarize, isBase64);
 
-      if (error) throw error;
-
-      if (data?.summary) {
-        setSummary(data.summary);
+      if (result?.summary) {
+        setSummary(result.summary);
         // Auto-save summary
         await saveSummary(
-          data.summary,
+          result.summary,
           title,
           isBase64 ? undefined : contentToSummarize,
           selectedMaterials.length > 0 ? selectedMaterials[0].id : undefined

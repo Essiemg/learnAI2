@@ -3,7 +3,7 @@ import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { ThemeToggle } from "./ThemeToggle";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   Sidebar,
   SidebarContent,
@@ -63,12 +63,21 @@ export function AppSidebar() {
   };
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-border">
-      <SidebarHeader className="border-b border-border">
-        <div className="flex items-center justify-center px-2 py-3">
-          <span className={`font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent ${collapsed ? "text-lg" : "text-2xl"}`}>
-            Toki
-          </span>
+    <Sidebar collapsible="icon" className="border-r border-border/50 bg-background/80 backdrop-blur-xl">
+      <SidebarHeader className="border-b border-border/50">
+        <div className="flex items-center justify-center gap-2 px-2 py-4">
+          <div className={`rounded-lg overflow-hidden bg-gradient-to-br from-primary/20 to-accent/20 p-0.5 ${collapsed ? "h-10 w-10" : "h-12 w-12"}`}>
+            <img 
+              src="/owl - illustrationImage.png" 
+              alt="Toki Logo" 
+              className="h-full w-full object-cover rounded-md"
+            />
+          </div>
+          {!collapsed && (
+            <span className="font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent text-2xl tracking-tight">
+              Toki
+            </span>
+          )}
         </div>
       </SidebarHeader>
 
@@ -167,8 +176,11 @@ export function AppSidebar() {
         <div className="flex items-center justify-between p-2">
           {user ? (
             <NavLink to="/profile" className="flex items-center gap-2 flex-1 min-w-0">
-              <Avatar className="h-8 w-8 shrink-0 bg-primary text-primary-foreground text-xs">
-                <AvatarFallback className="bg-transparent">
+              <Avatar className="h-8 w-8 shrink-0 text-primary-foreground text-xs">
+                {profile?.avatar_url ? (
+                  <AvatarImage src={profile.avatar_url} alt={profile.display_name || "Profile"} />
+                ) : null}
+                <AvatarFallback className="bg-primary">
                   {initials || <User className="h-4 w-4" />}
                 </AvatarFallback>
               </Avatar>

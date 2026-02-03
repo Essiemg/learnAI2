@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 
@@ -13,17 +13,27 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [needsVerification, setNeedsVerification] = useState(false);
   const { signIn, signInWithGoogle } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setNeedsVerification(false);
 
     const { error } = await signIn(email, password);
 
     if (error) {
-      toast.error(error.message || "Failed to sign in");
+      // Check if it's an email verification error (403 status or message contains 'verify')
+      const errorMessage = error.message || "";
+      const errorStatus = (error as any).status;
+      
+      if (errorMessage.toLowerCase().includes("verify") || errorStatus === 403) {
+        setNeedsVerification(true);
+      } else {
+        toast.error(errorMessage || "Failed to sign in");
+      }
       setIsLoading(false);
       return;
     }
@@ -34,11 +44,16 @@ export default function Login() {
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
+    setNeedsVerification(false);
     const { error } = await signInWithGoogle();
     if (error) {
       toast.error(error.message || "Failed to sign in with Google");
       setIsLoading(false);
     }
+  };
+
+  const handleResendVerification = () => {
+    navigate("/verify-email", { state: { email } });
   };
 
   return (
@@ -53,6 +68,28 @@ export default function Login() {
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
+            {needsVerification && (
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4 flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
+                    Please verify your email
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Check your inbox for the verification link, or click below to resend.
+                  </p>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleResendVerification}
+                    className="mt-1"
+                  >
+                    Resend Verification Email
+                  </Button>
+                </div>
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input

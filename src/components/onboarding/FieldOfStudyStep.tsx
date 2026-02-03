@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { FIELD_OF_STUDY_OPTIONS, EDUCATION_LEVELS, type EducationLevel } from '@/types/education';
-import { ArrowLeft, Briefcase, FlaskConical, BookOpen, Heart, Scale, GraduationCap, Palette, Microscope, Users } from 'lucide-react';
+import { ArrowLeft, Briefcase, FlaskConical, BookOpen, Heart, Scale, GraduationCap, Palette, Microscope, Users, Loader2 } from 'lucide-react';
 
 const FIELD_ICONS: Record<string, React.ReactNode> = {
   'Sciences': <FlaskConical className="h-5 w-5" />,
@@ -23,9 +23,10 @@ interface FieldOfStudyStepProps {
   educationLevel: EducationLevel;
   onSelect: (field: string) => void;
   onBack: () => void;
+  isSaving?: boolean;
 }
 
-export function FieldOfStudyStep({ educationLevel, onSelect, onBack }: FieldOfStudyStepProps) {
+export function FieldOfStudyStep({ educationLevel, onSelect, onBack, isSaving }: FieldOfStudyStepProps) {
   const fields = FIELD_OF_STUDY_OPTIONS[educationLevel];
   const levelLabel = EDUCATION_LEVELS.find(l => l.value === educationLevel)?.label;
 
@@ -47,11 +48,18 @@ export function FieldOfStudyStep({ educationLevel, onSelect, onBack }: FieldOfSt
         </CardDescription>
       </CardHeader>
       <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4">
-        {fields.map((field) => (
+        {isSaving && (
+          <div className="col-span-full flex items-center justify-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <span className="ml-2 text-muted-foreground">Saving your preferences...</span>
+          </div>
+        )}
+        {!isSaving && fields.map((field) => (
           <button
             key={field}
             onClick={() => onSelect(field)}
-            className="p-4 rounded-xl border-2 border-border bg-background hover:border-primary hover:bg-primary/5 transition-all duration-200 text-left flex items-center gap-3 group"
+            disabled={isSaving}
+            className="p-4 rounded-xl border-2 border-border bg-background hover:border-primary hover:bg-primary/5 transition-all duration-200 text-left flex items-center gap-3 group disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <div className="p-2 rounded-lg bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
               {FIELD_ICONS[field] || <BookOpen className="h-5 w-5" />}

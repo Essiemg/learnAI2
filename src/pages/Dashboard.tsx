@@ -12,6 +12,10 @@ import { Button } from "@/components/ui/button";
 import { useTopic } from "@/contexts/TopicContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEducationContext } from "@/contexts/EducationContext";
+import { AnimatedCard } from "@/components/ui/animated-card";
+import { GradientText } from "@/components/ui/gradient-text";
+import { ProgressRing } from "@/components/ui/progress-ring";
+import { motion } from "framer-motion";
 import * as Icons from "lucide-react";
 
 // Tool configurations based on education level
@@ -28,7 +32,7 @@ const TOOLS_CONFIG = {
     { name: 'Summarize', path: '/summarize', icon: FileText, description: 'Condense study materials' },
     { name: 'Diagrams', path: '/diagrams', icon: BarChart, description: 'Visualize concepts' },
   ],
-  undergraduate: [
+  college: [
     { name: 'AI Tutor', path: '/tutor', icon: MessageSquare, description: 'Advanced academic help' },
     { name: 'Flashcards', path: '/flashcards', icon: BookOpen, description: 'Memorize effectively' },
     { name: 'Quizzes', path: '/quizzes', icon: Brain, description: 'Self-assessment' },
@@ -108,9 +112,8 @@ export default function Dashboard() {
     return <Navigate to="/login" replace />;
   }
 
-  if (needsOnboarding) {
-    return <Navigate to="/onboarding" replace />;
-  }
+  // No longer redirect to onboarding - onboarding is handled after signup
+  // Dashboard shows progress even if onboarding is incomplete
 
   const educationLevel = userEducation?.education_level || 'primary';
   const tools = TOOLS_CONFIG[educationLevel];
@@ -125,7 +128,8 @@ export default function Dashboard() {
     switch (educationLevel) {
       case 'primary': return <School className="h-5 w-5" />;
       case 'high_school': return <BookOpen className="h-5 w-5" />;
-      case 'undergraduate': return <GraduationCap className="h-5 w-5" />;
+      case 'college': return <GraduationCap className="h-5 w-5" />;
+      default: return <School className="h-5 w-5" />;
     }
   };
 
@@ -140,8 +144,22 @@ export default function Dashboard() {
     switch (educationLevel) {
       case 'primary': return 'Primary School';
       case 'high_school': return 'High School';
-      case 'undergraduate': return 'Undergraduate';
+      case 'college': return 'College';
+      default: return 'Student';
     }
+  };
+
+  // Get grade or year info for display
+  const getGradeInfo = () => {
+    if (educationLevel === 'primary' || educationLevel === 'high_school') {
+      return userEducation?.grade_level ? `Grade ${userEducation.grade_level}` : '';
+    }
+    if (educationLevel === 'college') {
+      const year = userEducation?.college_year ? `Year ${userEducation.college_year}` : '';
+      const major = userEducation?.major || '';
+      return [year, major].filter(Boolean).join(' • ');
+    }
+    return '';
   };
 
   const stats = [
@@ -184,9 +202,14 @@ export default function Dashboard() {
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
       {/* Header with Education Context */}
-      <div className="space-y-2">
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="space-y-2"
+      >
         <h1 className="text-2xl md:text-3xl font-bold">
-          {getGreeting()}, {profile?.display_name || 'Learner'}! 👋
+          {getGreeting()}, <GradientText>{profile?.display_name || 'Learner'}</GradientText>! 👋
         </h1>
         <div className="flex items-center gap-2 text-muted-foreground">
           {getLevelIcon()}
@@ -198,62 +221,80 @@ export default function Dashboard() {
             </>
           )}
         </div>
-      </div>
+      </motion.div>
 
       {/* Subject Badges */}
       {userSubjects.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {userSubjects.map(subject => (
-            <Badge key={subject.id} variant="secondary" className="flex items-center gap-1">
-              {getIcon(subject.icon)}
-              {subject.name}
-            </Badge>
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.2 }}
+          className="flex flex-wrap gap-2"
+        >
+          {userSubjects.map((subject, index) => (
+            <motion.div
+              key={subject.id}
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.1 * index }}
+            >
+              <Badge variant="secondary" className="flex items-center gap-1 shadow-soft">
+                {getIcon(subject.icon)}
+                {subject.name}
+              </Badge>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat) => (
-          <Card key={stat.title}>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${stat.bgClass}`}>
-                  <stat.icon className={`h-5 w-5 ${stat.colorClass}`} />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{stat.value}</p>
-                  <p className="text-xs text-muted-foreground">{stat.title}</p>
-                </div>
+        {stats.map((stat, index) => (
+          <AnimatedCard key={stat.title} delay={0.1 * index} className="p-4">
+            <div className="flex items-center gap-3">
+              <div className={`p-2.5 rounded-xl ${stat.bgClass} shadow-soft`}>
+                <stat.icon className={`h-5 w-5 ${stat.colorClass}`} />
               </div>
-            </CardContent>
-          </Card>
+              <div>
+                <p className="text-2xl font-bold">{stat.value}</p>
+                <p className="text-xs text-muted-foreground">{stat.title}</p>
+              </div>
+            </div>
+          </AnimatedCard>
         ))}
       </div>
 
       {/* Quick Actions / Tools */}
       <div className="space-y-4">
         <h2 className="text-lg font-semibold flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-primary" />
-          Your Study Tools
+          <Sparkles className="h-5 w-5 text-primary animate-pulse-soft" />
+          <GradientText variant="primary">Your Study Tools</GradientText>
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {tools.map(tool => (
+          {tools.map((tool, index) => (
             <Link key={tool.path} to={tool.path}>
-              <Card className="h-full hover:border-primary transition-colors cursor-pointer group">
-                <CardHeader className="pb-2">
-                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
-                    <tool.icon className="h-5 w-5 text-primary" />
-                  </div>
-                  <CardTitle className="text-lg">{tool.name}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <CardDescription className="flex items-center justify-between">
-                    {tool.description}
-                    <ArrowRight className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </CardDescription>
-                </CardContent>
-              </Card>
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 * index }}
+                whileHover={{ scale: 1.03, y: -5 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <Card className="h-full border-border/50 hover:border-primary/50 hover:shadow-glow transition-all cursor-pointer group bg-card/50 backdrop-blur-sm">
+                  <CardHeader className="pb-2">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center mb-2 group-hover:scale-110 group-hover:shadow-glow transition-all">
+                      <tool.icon className="h-6 w-6 text-primary" />
+                    </div>
+                    <CardTitle className="text-lg group-hover:text-primary transition-colors">{tool.name}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <CardDescription className="flex items-center justify-between">
+                      {tool.description}
+                      <ArrowRight className="h-4 w-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+                    </CardDescription>
+                  </CardContent>
+                </Card>
+              </motion.div>
             </Link>
           ))}
         </div>
@@ -262,50 +303,53 @@ export default function Dashboard() {
       {/* Main Content Grid */}
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Weekly Goal */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-primary" />
-              Weekly Progress
-            </CardTitle>
-            <CardDescription>
-              Complete 7 learning activities this week
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span>Progress</span>
-                <span className="text-muted-foreground">{Math.round(weeklyProgress)}%</span>
+        <AnimatedCard delay={0.3} className="lg:col-span-2" hover={false}>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-primary" />
+                  Weekly Progress
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Complete 7 learning activities this week
+                </p>
               </div>
-              <Progress value={weeklyProgress} className="h-3" />
+              <ProgressRing 
+                progress={weeklyProgress} 
+                size={80} 
+                strokeWidth={6}
+                showLabel={true}
+              />
             </div>
             <div className="grid grid-cols-2 gap-4 pt-4">
-              <div className="p-4 rounded-lg bg-muted/50">
+              <div className="p-4 rounded-xl bg-gradient-to-br from-muted/50 to-muted/30 border border-border/50">
                 <p className="text-sm text-muted-foreground">Longest Streak</p>
-                <p className="text-2xl font-bold">{streakData.longestStreak} days</p>
+                <p className="text-2xl font-bold bg-gradient-to-r from-orange-500 to-red-500 bg-clip-text text-transparent">
+                  {streakData.longestStreak} days
+                </p>
               </div>
-              <div className="p-4 rounded-lg bg-muted/50">
+              <div className="p-4 rounded-xl bg-gradient-to-br from-muted/50 to-muted/30 border border-border/50">
                 <p className="text-sm text-muted-foreground">Total Study Days</p>
-                <p className="text-2xl font-bold">{streakData.totalDays} days</p>
+                <p className="text-2xl font-bold bg-gradient-to-r from-emerald-500 to-teal-500 bg-clip-text text-transparent">
+                  {streakData.totalDays} days
+                </p>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </AnimatedCard>
 
         {/* Recent Topics */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5 text-primary" />
-              Recent Topics
-            </CardTitle>
-            <CardDescription>Continue where you left off</CardDescription>
-          </CardHeader>
-          <CardContent>
+        <AnimatedCard delay={0.4} hover={false}>
+          <h3 className="text-lg font-semibold flex items-center gap-2 mb-2">
+            <Clock className="h-5 w-5 text-primary" />
+            Recent Topics
+          </h3>
+          <p className="text-sm text-muted-foreground mb-4">Continue where you left off</p>
+          <div>
             {currentTopic ? (
               <div className="space-y-3">
-                <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
+                <div className="p-3 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20">
                   <p className="font-medium">{currentTopic.name}</p>
                   <p className="text-xs text-muted-foreground">{currentTopic.subject}</p>
                 </div>
@@ -318,58 +362,77 @@ export default function Dashboard() {
                 Select a topic to start tracking your progress on specific subjects.
               </p>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </AnimatedCard>
       </div>
 
       {/* Study Sets Link */}
-      <Card className="bg-gradient-to-r from-primary/10 to-accent/10 border-primary/20">
-        <CardContent className="flex flex-col sm:flex-row items-center justify-between p-6 gap-4">
-          <div>
-            <h3 className="font-semibold text-lg">Your Study Materials</h3>
-            <p className="text-sm text-muted-foreground">
-              Upload documents, videos, and links to study from
-            </p>
-          </div>
-          <Button asChild>
-            <Link to="/study-sets">
-              View Study Sets
-              <ArrowRight className="h-4 w-4 ml-2" />
-            </Link>
-          </Button>
-        </CardContent>
-      </Card>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.5 }}
+      >
+        <Card className="bg-gradient-to-r from-primary/10 via-purple-500/10 to-accent/10 border-primary/20 shadow-glow overflow-hidden relative">
+          <div className="absolute inset-0 bg-gradient-to-r from-violet-500/5 to-pink-500/5" />
+          <CardContent className="flex flex-col sm:flex-row items-center justify-between p-6 gap-4 relative">
+            <div>
+              <h3 className="font-semibold text-lg">Your Study Materials</h3>
+              <p className="text-sm text-muted-foreground">
+                Upload documents, videos, and links to study from
+              </p>
+            </div>
+            <Button asChild className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 shadow-lg">
+              <Link to="/study-sets">
+                View Study Sets
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </motion.div>
 
       {/* Activity Breakdown */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BarChart3 className="h-5 w-5 text-primary" />
-            Activity Breakdown
-          </CardTitle>
-          <CardDescription>Your learning activities summary</CardDescription>
-        </CardHeader>
-        <CardContent>
+      <AnimatedCard delay={0.6} hover={false}>
+        <div className="space-y-4">
+          <div>
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-primary" />
+              Activity Breakdown
+            </h3>
+            <p className="text-sm text-muted-foreground">Your learning activities summary</p>
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center p-4 rounded-lg bg-primary/10">
+            <motion.div 
+              whileHover={{ scale: 1.05 }}
+              className="text-center p-4 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20"
+            >
               <p className="text-3xl font-bold text-primary">{activityData.tutorSessions}</p>
               <p className="text-sm text-muted-foreground">Tutor Sessions</p>
-            </div>
-            <div className="text-center p-4 rounded-lg bg-secondary">
-              <p className="text-3xl font-bold text-secondary-foreground">{activityData.flashcardsStudied}</p>
+            </motion.div>
+            <motion.div 
+              whileHover={{ scale: 1.05 }}
+              className="text-center p-4 rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 border border-emerald-500/20"
+            >
+              <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{activityData.flashcardsStudied}</p>
               <p className="text-sm text-muted-foreground">Flashcards</p>
-            </div>
-            <div className="text-center p-4 rounded-lg bg-accent/20">
-              <p className="text-3xl font-bold text-accent-foreground">{activityData.quizzesCompleted}</p>
+            </motion.div>
+            <motion.div 
+              whileHover={{ scale: 1.05 }}
+              className="text-center p-4 rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-500/5 border border-amber-500/20"
+            >
+              <p className="text-3xl font-bold text-amber-600 dark:text-amber-400">{activityData.quizzesCompleted}</p>
               <p className="text-sm text-muted-foreground">Quizzes</p>
-            </div>
-            <div className="text-center p-4 rounded-lg bg-muted">
-              <p className="text-3xl font-bold text-muted-foreground">{activityData.essaysSubmitted}</p>
+            </motion.div>
+            <motion.div 
+              whileHover={{ scale: 1.05 }}
+              className="text-center p-4 rounded-xl bg-gradient-to-br from-pink-500/20 to-pink-500/5 border border-pink-500/20"
+            >
+              <p className="text-3xl font-bold text-pink-600 dark:text-pink-400">{activityData.essaysSubmitted}</p>
               <p className="text-sm text-muted-foreground">Essays</p>
-            </div>
+            </motion.div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </AnimatedCard>
     </div>
   );
 }

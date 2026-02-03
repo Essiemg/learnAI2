@@ -1,4 +1,4 @@
-import { Phone, PhoneOff, Loader2, Mic, Volume2 } from "lucide-react";
+import { Radio, PhoneOff, Loader2, Mic, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -23,7 +23,7 @@ export function LiveVoiceButton({
     if (isProcessing) return "Connecting...";
     if (isSpeaking) return "AI Speaking...";
     if (isListening) return "Listening...";
-    return "Start Voice Chat";
+    return "Start Live Lecture";
   };
 
   const getStatusIcon = () => {
@@ -58,9 +58,9 @@ export function LiveVoiceButton({
             {isProcessing ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <Phone className="h-4 w-4" />
+              <Radio className="h-4 w-4" />
             )}
-            Go Live
+            Live Lecture
           </>
         )}
       </Button>

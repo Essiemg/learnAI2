@@ -10,7 +10,7 @@ import { TopicSelector } from "@/components/TopicSelector";
 import { useTopic } from "@/contexts/TopicContext";
 import { useUser } from "@/contexts/UserContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { essayApi, EssayFeedback } from "@/lib/api";
 import { toast } from "sonner";
 import { useEssayHistory } from "@/hooks/useEssayHistory";
 import { HistoryPanel } from "@/components/HistoryPanel";
@@ -60,69 +60,23 @@ export default function Essays() {
 
     setIsSubmitting(true);
     try {
-      const { data, error } = await supabase.functions.invoke("tutor-chat", {
-        body: {
-          messages: [
-            {
-              role: "user",
-              content: `You are an essay grading assistant. Grade the following essay for a grade ${effectiveGradeLevel} student${currentTopic ? ` on the topic of "${currentTopic.name}"` : ""}.
+      const result = await essayApi.grade(
+        essayTitle || "Untitled",
+        essayContent,
+        currentTopic?.name,
+        effectiveGradeLevel
+      );
 
-Title: ${essayTitle || "Untitled"}
+      if (result?.feedback) {
+        setFeedback(result.feedback);
 
-Essay:
-${essayContent}
-
-Provide detailed feedback. Return ONLY a valid JSON object with exactly this format, no other text:
-{
-  "overallScore": 85,
-  "categories": [
-    {"name": "Content & Ideas", "score": 80, "feedback": "specific feedback"},
-    {"name": "Organization", "score": 85, "feedback": "specific feedback"},
-    {"name": "Voice & Style", "score": 90, "feedback": "specific feedback"},
-    {"name": "Grammar & Mechanics", "score": 85, "feedback": "specific feedback"}
-  ],
-  "strengths": ["strength 1", "strength 2"],
-  "improvements": ["improvement 1", "improvement 2"],
-  "detailedFeedback": "2-3 paragraphs of detailed, encouraging feedback with specific suggestions"
-}
-
-Be encouraging and constructive. Provide age-appropriate feedback.`,
-            },
-          ],
-          gradeLevel: effectiveGradeLevel,
-        },
-      });
-
-      if (error) throw error;
-
-      // Parse the response
-      let content = "";
-      if (typeof data === "string") {
-        const lines = data.split("\n");
-        for (const line of lines) {
-          if (line.startsWith("data: ") && line !== "data: [DONE]") {
-            try {
-              const parsed = JSON.parse(line.slice(6));
-              content += parsed.choices?.[0]?.delta?.content || "";
-            } catch {}
-          }
-        }
-      } else {
-        content = data?.choices?.[0]?.message?.content || "";
-      }
-
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const parsedFeedback = JSON.parse(jsonMatch[0]);
-        setFeedback(parsedFeedback);
-
-        // Save to database
+        // Save to local history
         if (user) {
           await saveSubmission(
             essayTitle || null,
             currentTopic?.name || null,
             essayContent,
-            parsedFeedback
+            result.feedback
           );
         }
 
@@ -133,7 +87,7 @@ Be encouraging and constructive. Provide age-appropriate feedback.`,
 
         toast.success("Essay graded!");
       } else {
-        throw new Error("Could not parse feedback");
+        throw new Error("Could not get feedback");
       }
     } catch (error) {
       console.error("Error grading essay:", error);

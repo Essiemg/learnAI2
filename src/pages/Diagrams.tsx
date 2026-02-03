@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { MaterialSelector } from "@/components/MaterialSelector";
-import { supabase } from "@/integrations/supabase/client";
+import { diagramApi } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { useDiagramHistory } from "@/hooks/useDiagramHistory";
@@ -75,10 +75,12 @@ export default function Diagrams() {
 
     let contentToVisualize = "";
     let title = "";
+    let isBase64 = false;
 
     if (selectedMaterials.length > 0) {
       contentToVisualize = selectedMaterials[0].base64;
       title = selectedMaterials[0].name;
+      isBase64 = true;
     } else if (customText.trim()) {
       contentToVisualize = customText.trim();
       title = customText.slice(0, 50) + (customText.length > 50 ? "..." : "");
@@ -97,25 +99,16 @@ export default function Diagrams() {
     setCurrentTitle(title);
 
     try {
-      const { data, error } = await supabase.functions.invoke("generate-content", {
-        body: {
-          type: "diagram",
-          diagramType,
-          content: contentToVisualize,
-          isBase64: selectedMaterials.length > 0,
-        },
-      });
+      const result = await diagramApi.generate(contentToVisualize, diagramType, isBase64);
 
-      if (error) throw error;
-
-      if (data?.mermaidCode) {
-        setMermaidCode(data.mermaidCode);
+      if (result?.mermaid_code) {
+        setMermaidCode(result.mermaid_code);
         // Auto-save diagram
         await saveDiagram(
-          data.mermaidCode,
+          result.mermaid_code,
           diagramType,
           title,
-          selectedMaterials.length > 0 ? undefined : contentToVisualize,
+          isBase64 ? undefined : contentToVisualize,
           selectedMaterials.length > 0 ? selectedMaterials[0].id : undefined
         );
         toast({ title: "Diagram saved!" });

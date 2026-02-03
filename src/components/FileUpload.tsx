@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface UploadedFile {
@@ -31,6 +30,8 @@ const FILE_ICONS: Record<string, React.ElementType> = {
   text: FileText,
   default: File,
 };
+
+const STORAGE_KEY = "learnai_uploaded_files";
 
 function getFileIcon(type: string) {
   if (type.startsWith("image/")) return FILE_ICONS.image;
@@ -64,41 +65,41 @@ export function FileUpload({
       return null;
     }
 
+    const fileId = `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const uploadedFile: UploadedFile = {
-      id: crypto.randomUUID(),
+      id: fileId,
       name: file.name,
       type: file.type,
       size: file.size,
     };
 
-    // Convert to base64 for AI processing
+    // Convert to base64 for storage and AI processing
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onloadend = async () => {
         uploadedFile.base64 = reader.result as string;
         
-        // If user is logged in, also upload to storage
+        // Store in localStorage if user is logged in
         if (user) {
           try {
             const filePath = `${user.id}/${uploadedFile.id}-${file.name}`;
-            const { error } = await supabase.storage
-              .from("study-materials")
-              .upload(filePath, file);
+            uploadedFile.path = filePath;
             
-            if (!error) {
-              uploadedFile.path = filePath;
-              
-              // Save to database for later use
-              await supabase.from("uploaded_materials").insert({
-                user_id: user.id,
-                file_name: file.name,
-                file_path: filePath,
-                file_type: file.type,
-                file_size: file.size,
-              });
-            }
+            // Save to localStorage
+            const stored = localStorage.getItem(`${STORAGE_KEY}_${user.id}`);
+            const existingFiles = stored ? JSON.parse(stored) : [];
+            existingFiles.push({
+              id: uploadedFile.id,
+              file_name: file.name,
+              file_path: filePath,
+              file_type: file.type,
+              file_size: file.size,
+              base64_data: uploadedFile.base64,
+              created_at: new Date().toISOString(),
+            });
+            localStorage.setItem(`${STORAGE_KEY}_${user.id}`, JSON.stringify(existingFiles));
           } catch (e) {
-            console.error("Storage upload error:", e);
+            console.error("Storage error:", e);
           }
         }
         
@@ -147,8 +148,13 @@ export function FileUpload({
     const file = files.find((f) => f.id === fileId);
     if (file?.path && user) {
       try {
-        await supabase.storage.from("study-materials").remove([file.path]);
-        await supabase.from("uploaded_materials").delete().eq("file_path", file.path);
+        // Remove from localStorage
+        const stored = localStorage.getItem(`${STORAGE_KEY}_${user.id}`);
+        if (stored) {
+          const existingFiles = JSON.parse(stored);
+          const updatedFiles = existingFiles.filter((f: any) => f.file_path !== file.path);
+          localStorage.setItem(`${STORAGE_KEY}_${user.id}`, JSON.stringify(updatedFiles));
+        }
       } catch (e) {
         console.error("Delete error:", e);
       }

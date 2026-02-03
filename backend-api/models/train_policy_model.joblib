@@ -1,0 +1,104 @@
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+import joblib
+
+CSV_PATH = "policy_data.csv"
+MODEL_OUT = "policy_model.joblib"
+
+FEATURES = ["grade", "mistakes", "time_spent", "frustration", "recent_accuracy"]
+
+def main():
+    # 1) Load dataset
+    df = pd.read_csv(CSV_PATH)
+
+    # 2) Basic validation (helpful errors)
+    required_cols = FEATURES + ["strategy"]
+    missing = [c for c in required_cols if c not in df.columns]
+    if missing:
+        raise ValueError(
+            f"policy_data.csv is missing columns: {missing}\n"
+            f"Expected columns: {required_cols}"
+        )
+
+    # 3) Prepare X/y
+    X = df[FEATURES]
+    y = df["strategy"]
+
+    # 4) Split
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42, stratify=y
+    )
+
+    # 5) Train model
+    model = RandomForestClassifier(
+        n_estimators=300,
+        random_state=42,
+        max_depth=None,
+        class_weight="balanced"  # helps if some strategies appear less often
+    )
+    model.fit(X_train, y_train)
+
+    # 6) Evaluate
+    pred = model.predict(X_test)
+
+    print("=== Evaluation ===")
+    print("Accuracy:", accuracy_score(y_test, pred))
+    print("\nConfusion matrix:\n", confusion_matrix(y_test, pred))
+    print("\nClassification report:\n", classification_report(y_test, pred))
+
+    # 7) Save model
+    joblib.dump(
+        {
+            "model": model,
+            "features": FEATURES
+        },
+        MODEL_OUT
+    )
+    print(f"\nSaved model to: {MODEL_OUT}")
+
+    # 8) Example prediction
+    example = {
+        "grade": 4,
+        "mistakes": 3,
+        "time_spent": 120,
+        "frustration": 2,        # 0=low,1=med,2=high
+        "recent_accuracy": 0.4   # last few questions
+    }
+    strategy = predict_strategy(example, MODEL_OUT)
+    print("\nExample input:", example)
+    print("Predicted strategy:", strategy)
+
+
+def predict_strategy(student_state: dict, model_path: str = MODEL_OUT) -> str:
+    """
+    Predict the tutoring strategy from a student_state dict.
+
+    student_state must contain:
+    - grade (int 1..8)
+    - mistakes (int)
+    - time_spent (int seconds)
+    - frustration (0/1/2)
+    - recent_accuracy (0.0..1.0)
+
+    Returns:
+        strategy label string e.g. "HINT", "SIMPLER_EXAMPLE", "ENCOURAGE", "ADVANCE"
+    """
+    bundle = joblib.load(model_path)
+    model = bundle["model"]
+    features = bundle["features"]
+
+    row = {f: student_state.get(f) for f in features}
+
+    # quick sanity checks
+    for f in features:
+        if row[f] is None:
+            raise ValueError(f"Missing feature '{f}' in student_state: {student_state}")
+
+    X = pd.DataFrame([row], columns=features)
+    return model.predict(X)[0]
+
+
+if __name__ == "__main__":
+    main()
