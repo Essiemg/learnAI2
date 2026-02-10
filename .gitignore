@@ -32,6 +32,16 @@ voice-model/datasets/
 *.wav
 *.flac
 *.mp3
+
+# model weights / outputs
+voice-model/models/output/
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.onnx
+*.gguf
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
