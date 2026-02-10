@@ -25,7 +25,13 @@ node_modules
 dist
 dist-ssr
 *.local
-
+# Datasets / audio
+voice-model/datasets/
+**/datasets/
+**/LJSpeech-1.1/
+*.wav
+*.flac
+*.mp3
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
