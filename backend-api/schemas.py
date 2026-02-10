@@ -38,6 +38,7 @@ class UserProfile(BaseModel):
     name: str
     email: str
     grade: int
+    role: str = "student"  # student, parent, admin
     created_at: datetime
 
     class Config:

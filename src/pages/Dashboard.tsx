@@ -16,6 +16,7 @@ import { AnimatedCard } from "@/components/ui/animated-card";
 import { GradientText } from "@/components/ui/gradient-text";
 import { ProgressRing } from "@/components/ui/progress-ring";
 import { motion } from "framer-motion";
+import ProgressReport from "@/components/ProgressReport";
 import * as Icons from "lucide-react";
 
 // Tool configurations based on education level
@@ -387,6 +388,33 @@ export default function Dashboard() {
                 <ArrowRight className="h-4 w-4 ml-2" />
               </Link>
             </Button>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* Progress Report Section */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.55 }}
+      >
+        <Card className="bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-cyan-500/10 border-emerald-500/20 shadow-glow overflow-hidden relative">
+          <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 to-teal-500/5" />
+          <CardContent className="flex flex-col sm:flex-row items-center justify-between p-6 gap-4 relative">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20">
+                <TrendingUp className="h-8 w-8 text-emerald-500" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-lg">Track Your Progress</h3>
+                <p className="text-sm text-muted-foreground">
+                  Get AI-powered insights and feedback on your learning journey
+                </p>
+              </div>
+            </div>
+            <div className="w-full sm:w-auto">
+              <ProgressReport />
+            </div>
           </CardContent>
         </Card>
       </motion.div>

@@ -51,6 +51,7 @@ from routers.diagram_routes import router as diagram_router
 from routers.voice_routes import router as voice_router
 from routers.voice_routes_v2 import router as voice_v2_router
 from routers.ocr_routes import router as ocr_router
+from routers.report_routes import router as report_router
 
 # =============================================================================
 # Logging Configuration
@@ -171,19 +172,10 @@ async def debug_exception_handler(request: Request, exc: Exception):
         content={"detail": str(exc), "traceback": traceback.format_exc()}
     )
 
-# Configure CORS
+# Configure CORS - Allow all origins in development
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "http://localhost:8080",
-        "http://localhost:8081",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:8080",
-        "http://127.0.0.1:8081",
-    ],
+    allow_origins=["*"],  # Allow all origins for development
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -202,6 +194,8 @@ app.include_router(summary_router, prefix="/api")
 app.include_router(diagram_router, prefix="/api")
 app.include_router(voice_router, prefix="/api")
 app.include_router(voice_v2_router, prefix="/api/v2")  # New voice routes with emotions
+app.include_router(ocr_router, prefix="/api")
+app.include_router(report_router, prefix="/api")  # Progress reports
 
 # Add WebSocket route at root level (not under /api prefix)
 # Re-export the websocket endpoint from voice_v2_router
