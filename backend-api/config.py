@@ -35,8 +35,32 @@ class Settings(BaseSettings):
     # -------------------------------------------------------------------------
     # Database Configuration
     # -------------------------------------------------------------------------
-    # SQLite database file path (no external server needed)
-    DATABASE_URL: str = "sqlite:///./learnai.db"
+    # Database connection parameters
+    DB_HOST: str = "localhost"
+    DB_PORT: int = 3306
+    DB_USER: str = "root"
+    DB_PASSWORD: str = ""
+    DB_NAME: str = "toki"
+    
+    # Optional: Full URL override
+    DATABASE_URL: str = ""
+    
+    @property
+    def SQLALCHEMY_DATABASE_URL(self) -> str:
+        """Construct the database URL from components or use the override."""
+        if self.DATABASE_URL:
+            return self.DATABASE_URL
+            
+        # Default to MySQL
+        from sqlalchemy.engine.url import URL
+        return URL.create(
+            "mysql+mysqlconnector",
+            username=self.DB_USER,
+            password=self.DB_PASSWORD,
+            host=self.DB_HOST,
+            port=self.DB_PORT,
+            database=self.DB_NAME
+        ).render_as_string(hide_password=False)
     
     # -------------------------------------------------------------------------
     # JWT Authentication

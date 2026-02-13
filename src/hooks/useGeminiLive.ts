@@ -21,22 +21,22 @@ interface AudioQueueItem {
 function speakWithBrowserTTS(text: string, onStart?: () => void, onEnd?: () => void) {
   // Cancel any ongoing speech
   window.speechSynthesis.cancel();
-  
+
   const cleanText = text
     .replace(/[^\w\s.,!?'"()-:;\n]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-  
+
   if (!cleanText || cleanText.length < 2) return;
-  
+
   const utterance = new SpeechSynthesisUtterance(cleanText);
   utterance.rate = 1.0;
   utterance.pitch = 1.0;
-  
+
   utterance.onstart = () => onStart?.();
   utterance.onend = () => onEnd?.();
   utterance.onerror = () => onEnd?.();
-  
+
   window.speechSynthesis.speak(utterance);
 }
 
@@ -48,13 +48,13 @@ function speakWithBrowserTTS(text: string, onStart?: () => void, onEnd?: () => v
  * - Receiving transcribed user speech
  * - Receiving AI responses (text + audio)
  */
-export function useGeminiLive({ 
-  gradeLevel, 
-  educationLevel, 
-  fieldOfStudy, 
-  subjects, 
-  onTranscript, 
-  onError 
+export function useGeminiLive({
+  gradeLevel,
+  educationLevel,
+  fieldOfStudy,
+  subjects,
+  onTranscript,
+  onError
 }: UseLiveLectureOptions) {
   const [isConnected, setIsConnected] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -74,8 +74,17 @@ export function useGeminiLive({
   const pendingTextRef = useRef<string | null>(null);
   const audioTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Create WAV from PCM data for playback
+  // Create WAV from PCM data for playback (or pass through if already WAV)
   const createWavFromPCM = useCallback((pcmData: Uint8Array): ArrayBuffer => {
+    // Check if it's already a WAV file (starts with "RIFF")
+    if (pcmData.length >= 4 &&
+      pcmData[0] === 82 && // R
+      pcmData[1] === 73 && // I
+      pcmData[2] === 70 && // F
+      pcmData[3] === 70) { // F
+      return pcmData.buffer;
+    }
+
     const sampleRate = 24000;
     const numChannels = 1;
     const bitsPerSample = 16;
@@ -210,26 +219,26 @@ export function useGeminiLive({
       processorRef.current.onaudioprocess = (e) => {
         if (wsRef.current?.readyState === WebSocket.OPEN && isListening) {
           const inputData = e.inputBuffer.getChannelData(0);
-          
+
           // Check if there's actual audio (not silence)
           const maxAmplitude = Math.max(...Array.from(inputData).map(Math.abs));
           const hasSound = maxAmplitude > 0.01; // Threshold for detecting speech
-          
+
           if (hasSound) {
             hasAudioRef.current = true;
             lastAudioTimeRef.current = Date.now();
-            
+
             // Clear any pending silence timeout
             if (silenceTimeoutRef.current) {
               clearTimeout(silenceTimeoutRef.current);
               silenceTimeoutRef.current = null;
             }
           }
-          
+
           // Send audio to server
           const encoded = encodeAudioForAPI(new Float32Array(inputData));
           wsRef.current.send(JSON.stringify({ type: "audio", data: encoded }));
-          
+
           // Check for silence after speech (1.5 seconds of silence = end of turn)
           if (hasAudioRef.current && !hasSound && !silenceTimeoutRef.current && !isProcessing) {
             silenceTimeoutRef.current = setTimeout(() => {
@@ -265,7 +274,7 @@ export function useGeminiLive({
       silenceTimeoutRef.current = null;
     }
     hasAudioRef.current = false;
-    
+
     if (sourceRef.current) {
       sourceRef.current.disconnect();
       sourceRef.current = null;
@@ -332,16 +341,16 @@ export function useGeminiLive({
           case "text":
             // AI response text - store it and start a fallback timer
             onTranscript?.(message.data, message.isUser === true);
-            
+
             // If this is AI text (not user), set up fallback to browser TTS
             if (!message.isUser) {
               pendingTextRef.current = message.data;
-              
+
               // Clear any existing timeout
               if (audioTimeoutRef.current) {
                 clearTimeout(audioTimeoutRef.current);
               }
-              
+
               // If no audio arrives in 2 seconds, use browser TTS
               audioTimeoutRef.current = setTimeout(() => {
                 if (pendingTextRef.current) {
@@ -400,7 +409,7 @@ export function useGeminiLive({
   const disconnect = useCallback(() => {
     stopMicrophone();
     audioQueueRef.current = [];
-    
+
     // Clear browser TTS fallback timeout
     if (audioTimeoutRef.current) {
       clearTimeout(audioTimeoutRef.current);

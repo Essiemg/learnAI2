@@ -17,7 +17,7 @@ Usage:
     uvicorn main:app --host 0.0.0.0 --port 8000
 
 Environment Variables Required:
-    DATABASE_URL: PostgreSQL connection string
+    DATABASE_URL: MySQL connection string
     JWT_SECRET_KEY: Secret key for JWT tokens
     
 See .env.example for all configuration options.
@@ -52,6 +52,7 @@ from routers.voice_routes import router as voice_router
 from routers.voice_routes_v2 import router as voice_v2_router
 from routers.ocr_routes import router as ocr_router
 from routers.report_routes import router as report_router
+from routers.admin_routes import router as admin_router
 
 # =============================================================================
 # Logging Configuration
@@ -65,11 +66,11 @@ logger = logging.getLogger(__name__)
 # Load settings
 settings = get_settings()
 
-# Validate critical environment variables
-if not settings.DATABASE_URL:
-    logger.error("FATAL: DATABASE_URL environment variable is not set!")
+# Validat# Check critical environment variables
+if not settings.SQLALCHEMY_DATABASE_URL:
+    logger.error("FATAL: Database configuration missing!")
     logger.error("Please create a .env file with your database connection string.")
-    logger.error("Example: DATABASE_URL=postgresql://postgres:password@localhost:5432/ai_tutor")
+    logger.error("Example: DB_HOST=localhost, DB_USER=root, etc.")
     sys.exit(1)
 
 if settings.JWT_SECRET_KEY == "your-super-secret-key-change-in-production":
@@ -101,7 +102,8 @@ async def lifespan(app: FastAPI):
         logger.error("FATAL: Cannot connect to database. Exiting.")
         sys.exit(1)
     
-    # Step 1b: Initialize database tables (auto-create for SQLite)
+    # Step 1b: Initialize database tables
+
     logger.info("Step 1b: Initializing database tables...")
     init_database()
     
@@ -196,6 +198,7 @@ app.include_router(voice_router, prefix="/api")
 app.include_router(voice_v2_router, prefix="/api/v2")  # New voice routes with emotions
 app.include_router(ocr_router, prefix="/api")
 app.include_router(report_router, prefix="/api")  # Progress reports
+app.include_router(admin_router, prefix="/api")  # Admin dashboard
 
 # Add WebSocket route at root level (not under /api prefix)
 # Re-export the websocket endpoint from voice_v2_router

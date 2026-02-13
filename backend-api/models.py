@@ -3,7 +3,7 @@ SQLAlchemy ORM Models
 =====================
 This module defines all database models for the AI Tutor application.
 
-Models are automatically created when the application starts using SQLite.
+Models are automatically created when the application starts.
 
 Table Structure:
 - users: User accounts
@@ -32,7 +32,7 @@ from db import Base
 # Custom UUID Type for SQLite Compatibility
 # =============================================================================
 class GUID(TypeDecorator):
-    """Platform-independent UUID type that works with SQLite."""
+    """Platform-independent UUID type."""
     impl = String(36)
     cache_ok = True
 

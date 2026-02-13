@@ -13,61 +13,26 @@ FastAPI backend for the LearnAI AI tutoring platform. Replaces Supabase with a c
 ## Prerequisites
 
 - Python 3.10+
-- PostgreSQL 14+
+- MySQL 8.0+
 - (Optional) CUDA-compatible GPU for Phi-3 inference
 
 ## Setup Instructions
 
-### 1. Install PostgreSQL
+### 1. Install MySQL
 
-#### Windows
-1. Download PostgreSQL from https://www.postgresql.org/download/windows/
-2. Run the installer
-3. Set password for `postgres` user (remember this!)
-4. Default port: 5432
-
-#### macOS
+#### Docker (Recommended)
 ```bash
-brew install postgresql@15
-brew services start postgresql@15
-```
-
-#### Linux (Ubuntu/Debian)
-```bash
-sudo apt update
-sudo apt install postgresql postgresql-contrib
-sudo systemctl start postgresql
-```
-
-### 2. Create Database
-
-Open a terminal/command prompt:
-
-```bash
-# Connect to PostgreSQL
-psql -U postgres
-
-# Create the database
-CREATE DATABASE learnai;
-
-# Exit psql
-\q
-```
-
-### 3. Run Schema Migration
-
-```bash
-# Navigate to backend-api folder
 cd backend-api
-
-# Run the schema SQL file
-psql -U postgres -d learnai -f schema.sql
+docker-compose up -d mysql
 ```
 
-Or on Windows with password prompt:
-```bash
-psql -U postgres -d learnai -f schema.sql
-```
+This starts MySQL on port 3306 with the database `learnai` already created.
+
+#### Manual Installation
+1. Install MySQL Server 8.0+
+2. Create a database named `learnai`
+3. Create a user/password (e.g., `root`/`password` or custom)
+
 
 ### 4. Set Up Python Environment
 
@@ -97,7 +62,7 @@ cp .env.example .env
 
 Edit `.env` with your settings:
 ```env
-DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@localhost:5432/learnai
+DATABASE_URL=mysql+mysqlconnector://user:password@localhost:3306/learnai
 JWT_SECRET_KEY=your-super-secret-key-change-this
 POLICY_MODEL_PATH=./models/policy_model.joblib
 PHI3_MODEL_PATH=./models/phi3-base
@@ -193,7 +158,7 @@ cd backend-api
 docker-compose up -d
 ```
 
-This starts PostgreSQL on port 5432 with the schema already applied.
+This starts MySQL on port 3306.
 
 ## Project Structure
 
@@ -206,7 +171,7 @@ backend-api/
 ├── schemas.py           # Pydantic request/response schemas
 ├── auth.py              # JWT utilities
 ├── ml_models.py         # ML model loading and inference
-├── schema.sql           # Database schema
+
 ├── requirements.txt     # Python dependencies
 ├── .env.example         # Environment template
 ├── docker-compose.yml   # Optional Docker setup

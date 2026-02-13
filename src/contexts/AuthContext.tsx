@@ -38,7 +38,7 @@ interface AuthContextType {
   profile: Profile | null;
   role: UserRole | null;
   isLoading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signIn: (email: string, password: string) => Promise<{ error: Error | null; role?: string | null }>;
   signInWithGoogle: () => Promise<{ error: Error | null }>;
   signUp: (
     email: string,
@@ -79,14 +79,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Check for pending avatar from signup
     const pendingAvatar = localStorage.getItem('pending_avatar');
     let avatarUrl = getStoredAvatar(userProfile.id);
-    
+
     if (pendingAvatar) {
       // Move pending avatar to user's storage
       storeAvatar(userProfile.id, pendingAvatar);
       avatarUrl = pendingAvatar;
       localStorage.removeItem('pending_avatar');
     }
-    
+
     return {
       id: userProfile.id,
       user_id: userProfile.id,
@@ -112,15 +112,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const userProfile = await authApi.getMe();
       const user = userProfileToUser(userProfile);
       const profile = userProfileToProfile(userProfile);
-      
+
       setUser(user);
       setProfile(profile);
-      setRole("child"); // Default role - can be extended
-      
+
+      // Normalize 'student' from backend to 'child' for frontend consistency
+      const backendRole = userProfile.role || "child";
+      const normalizedRole = backendRole === "student" ? "child" : backendRole;
+      setRole(normalizedRole as UserRole);
+
       const token = getToken();
       if (token) {
         setSession({ access_token: token, user });
       }
+      return userProfile;
     } catch (error) {
       // Token invalid or expired
       console.error("Failed to fetch profile:", error);
@@ -129,6 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setProfile(null);
       setRole(null);
       removeToken();
+      return null;
     }
   };
 
@@ -137,7 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
     const error = urlParams.get('error');
-    
+
     if (token) {
       // Handle OAuth callback - store token and clean URL
       authApi.handleOAuthCallback(token);
@@ -162,10 +168,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = async (email: string, password: string) => {
     try {
       await authApi.login({ email, password });
-      await fetchProfile();
-      return { error: null };
+      const profile = await fetchProfile();
+      return { error: null, role: profile?.role };
     } catch (error) {
-      return { error: error as Error };
+      return { error: error as Error, role: null };
     }
   };
 
@@ -195,8 +201,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         name: displayName,
         grade: gradeLevel || 1,
       });
-      // Don't fetch profile - user needs to verify email first
-      // await fetchProfile();
+
+      // Fetch profile immediately as user is auto-verified and logged in
+      await fetchProfile();
       return { error: null };
     } catch (error) {
       return { error: error as Error };
@@ -232,7 +239,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       // Store avatar in localStorage
       storeAvatar(user.id, avatarDataUrl);
-      
+
       // Update profile state with new avatar
       if (profile) {
         setProfile({
@@ -240,7 +247,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           avatar_url: avatarDataUrl,
         });
       }
-      
+
       return { error: null };
     } catch (error) {
       return { error: error as Error };

@@ -16,7 +16,7 @@ export default function Profile() {
   const { user, profile, role, updateProfile, updateAvatar, signOut, isLoading: authLoading } = useAuth();
   const { userEducation } = useEducation();
   const navigate = useNavigate();
-  
+
   const [displayName, setDisplayName] = useState(profile?.display_name || "");
   const [gradeLevel, setGradeLevel] = useState(profile?.grade_level?.toString() || "");
   const [selectedColor, setSelectedColor] = useState(0);
@@ -32,7 +32,7 @@ export default function Profile() {
       setDisplayName(profile.display_name || "");
       setGradeLevel(profile.grade_level?.toString() || "");
       setIsLinkedToParent(!!profile.parent_id);
-      
+
       // Check if avatar_url is a data URL (custom image) or a color class
       if (profile.avatar_url && profile.avatar_url.startsWith('data:')) {
         setCustomAvatar(profile.avatar_url);
@@ -103,7 +103,10 @@ export default function Profile() {
     admin: { icon: Shield, label: "Administrator", color: "text-purple-500" },
   };
 
-  const RoleIcon = roleInfo[role || "child"].icon;
+  // Handle potential 'student' role from legacy backend data
+  const normalizedRole = (role as string) === "student" ? "child" : (role || "child");
+  const roleData = roleInfo[normalizedRole as UserRole] || roleInfo["child"];
+  const RoleIcon = roleData.icon;
 
   const renderContent = () => {
     switch (activeSection) {
@@ -143,8 +146,8 @@ export default function Profile() {
           </Button>
           <h1 className="font-semibold">Profile & Settings</h1>
         </div>
-        <Button 
-          variant="outline" 
+        <Button
+          variant="outline"
           size="sm"
           onClick={() => setActiveSection("settings")}
           className="gap-2"
@@ -169,18 +172,18 @@ export default function Profile() {
                     onColorChange={setSelectedColor}
                     onAvatarChange={handleAvatarChange}
                   />
-                  
+
                   {/* User Name */}
                   <h2 className="mt-4 text-xl font-bold text-foreground">
                     {profile.display_name || "User"}
                   </h2>
-                  
+
                   {/* Email/Username */}
                   <div className="flex items-center gap-1 mt-1 text-sm text-muted-foreground">
                     <Mail className="h-3 w-3" />
                     <span>{user?.email || "No email"}</span>
                   </div>
-                  
+
                   {/* Role Badge */}
                   <div className="mt-3 flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted text-sm">
                     <RoleIcon className={`h-4 w-4 ${roleInfo[role || "child"].color}`} />

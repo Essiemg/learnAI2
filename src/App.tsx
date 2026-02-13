@@ -26,7 +26,11 @@ import Onboarding from "./pages/Onboarding";
 import VerifyEmail from "./pages/VerifyEmail";
 import Profile from "./pages/Profile";
 import ParentDashboard from "./pages/ParentDashboard";
-import AdminDashboard from "./pages/AdminDashboard";
+import { AdminLayout } from "@/components/AdminLayout";
+import DashboardOverview from "./pages/admin/DashboardOverview";
+import UserManagement from "./pages/admin/UserManagement";
+import ReportGeneration from "./pages/admin/ReportGeneration";
+import AdminPlaceholder from "./components/AdminPlaceholder";
 import StudySets from "./pages/StudySets";
 import NotFound from "./pages/NotFound";
 
@@ -64,7 +68,16 @@ const App = () => (
                           <Route path="/calendar" element={<Calendar />} />
                           <Route path="/profile" element={<Profile />} />
                           <Route path="/parent" element={<ParentDashboard />} />
-                          <Route path="/admin" element={<AdminDashboard />} />
+                          <Route path="admin" element={<AdminLayout />}>
+                            <Route index element={<DashboardOverview />} />
+                            <Route path="users" element={<UserManagement />} />
+                            <Route path="reports" element={<ReportGeneration />} />
+                            <Route path="roles" element={<AdminPlaceholder title="Roles & Permissions" />} />
+                            <Route path="content" element={<AdminPlaceholder title="Learning Content" />} />
+                            <Route path="quizzes" element={<AdminPlaceholder title="Quiz Management" />} />
+                            <Route path="flagged" element={<AdminPlaceholder title="Flagged Conversations" />} />
+                            <Route path="settings" element={<AdminPlaceholder title="System Settings" />} />
+                          </Route>
                           <Route path="/study-sets" element={<StudySets />} />
                           <Route path="*" element={<NotFound />} />
                         </Routes>

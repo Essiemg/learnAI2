@@ -6,7 +6,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
 from db import get_db
-from models import User, FlashcardSession
+from db import get_db
+from models import User, FlashcardSession, StudyEvent
 from schemas import FlashcardGenerateRequest, FlashcardSessionResponse
 from auth import get_current_user
 from ml_models import generate_flashcards
@@ -54,9 +55,22 @@ async def generate_flashcard_session(
         current_index=0
     )
     
+
     db.add(session)
     db.commit()
     db.refresh(session)
+    
+    # Log study event
+    event = StudyEvent(
+        user_id=current_user.id,
+        event_type="flashcard_generation",
+        subject=request.topic,  # Using topic as subject for simplicity
+        topic=request.topic,
+        duration_seconds=0,  # Instant event
+        event_data={"card_count": len(cards)}
+    )
+    db.add(event)
+    db.commit()
     
     return session
 

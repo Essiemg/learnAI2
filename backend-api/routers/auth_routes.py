@@ -170,27 +170,27 @@ async def register(user_data: UserRegister, db: Session = Depends(get_db)):
         verification_token = generate_verification_token()
         token_expires = datetime.utcnow() + timedelta(hours=settings.VERIFICATION_TOKEN_EXPIRE_HOURS)
         
-        # Create new user (unverified)
+        # Create new user (automatically verified)
         user = User(
             name=user_data.name,
             email=user_data.email,
             password_hash=hash_password(user_data.password),
             grade=user_data.grade,
-            email_verified=False,
-            verification_token=verification_token,
-            verification_token_expires=token_expires
+            email_verified=True,  # Auto-verify
+            verification_token=None,
+            verification_token_expires=None
         )
         
         db.add(user)
         db.commit()
         db.refresh(user)
         
-        # Send verification email
-        email_sent = send_verification_email(user.email, user.name, verification_token)
+        # Generate access token for auto-login
+        access_token = create_access_token(user.id)
         
         return {
-            "message": "Registration successful. Please check your email to verify your account.",
-            "email_sent": email_sent
+            "access_token": access_token,
+            "token_type": "bearer"
         }
         
     except HTTPException:
@@ -225,14 +225,8 @@ async def login(credentials: UserLogin, db: Session = Depends(get_db)):
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # Check if email is verified
-    if not user.email_verified:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Please verify your email before logging in. Check your inbox for the verification link.",
-        )
     
-    # Generate token
+    # Geneate token (Email verification check removed)
     access_token = create_access_token(user.id)
     
     return Token(access_token=access_token)
@@ -337,6 +331,7 @@ async def get_me(current_user: User = Depends(get_current_user)):
         name=current_user.name,
         email=current_user.email,
         grade=current_user.grade,
+        role=current_user.role,
         created_at=current_user.created_at
     )
 
@@ -362,6 +357,7 @@ async def update_me(
         name=current_user.name,
         email=current_user.email,
         grade=current_user.grade,
+        role=current_user.role,
         created_at=current_user.created_at
     )
 

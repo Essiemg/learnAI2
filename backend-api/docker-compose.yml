@@ -4,37 +4,22 @@
 version: '3.8'
 
 services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: learnai-postgres
+  mysql:
+    image: mysql:8.0
+    container_name: learnai-mysql
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: learnai
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: learnai
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
     ports:
-      - "5432:5432"
+      - "3306:3306"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql
+      - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  # Optional: Run the API in Docker as well
-  # api:
-  #   build: .
-  #   container_name: learnai-api
-  #   ports:
-  #     - "8000:8000"
-  #   environment:
-  #     - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/learnai
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #   volumes:
-  #     - ./models:/app/models
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
 
 volumes:
-  postgres_data:
+  mysql_data:

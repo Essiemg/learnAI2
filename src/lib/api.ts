@@ -44,7 +44,7 @@ async function apiFetch<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const token = getToken();
-  
+
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
     ...options.headers,
@@ -108,6 +108,7 @@ export interface UserProfile {
   id: string;
   name: string;
   email: string;
+  role: string;
   grade: number;
   created_at: string;
 }
@@ -158,7 +159,7 @@ export const authApi = {
     const params = new URLSearchParams();
     if (data.name) params.append('name', data.name);
     if (data.grade) params.append('grade', data.grade.toString());
-    
+
     return apiFetch<UserProfile>(`/auth/me?${params.toString()}`, {
       method: 'PUT',
     });
@@ -613,11 +614,11 @@ export const essayApi = {
   async grade(title: string, content: string, topic?: string, gradeLevel?: number): Promise<EssaySubmission> {
     return apiFetch<EssaySubmission>('/essays/grade', {
       method: 'POST',
-      body: JSON.stringify({ 
-        title, 
-        content, 
+      body: JSON.stringify({
+        title,
+        content,
         topic,
-        grade_level: gradeLevel 
+        grade_level: gradeLevel
       }),
     });
   },
@@ -713,10 +714,10 @@ export const diagramApi = {
   async generate(content: string, diagramType: 'flowchart' | 'mindmap', isBase64 = false): Promise<Diagram> {
     return apiFetch<Diagram>('/diagrams/generate', {
       method: 'POST',
-      body: JSON.stringify({ 
-        content, 
+      body: JSON.stringify({
+        content,
         diagram_type: diagramType,
-        is_base64: isBase64 
+        is_base64: isBase64
       }),
     });
   },
@@ -738,6 +739,88 @@ export const diagramApi = {
   },
 };
 
+// ============================================
+// ADMIN API
+// ============================================
+
+export interface SystemStats {
+  total_users: number;
+  active_users_24h: number;
+  total_quizzes: number;
+  total_flashcards: number;
+  total_interactions: number;
+  total_study_time_hours: number;
+}
+
+export interface UserSummary {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  grade: number;
+  created_at: string;
+  last_active: string | null;
+  stats: {
+    quizzes: number;
+    flashcards: number;
+  };
+}
+
+export interface ActivityLog {
+  id: string;
+  user_name: string;
+  event_type: string;
+  details: string;
+  created_at: string;
+}
+
+export const adminApi = {
+  /**
+   * Get system stats
+   */
+  async getStats(): Promise<SystemStats> {
+    return apiFetch<SystemStats>('/admin/stats');
+  },
+
+  /**
+   * Get users list
+   */
+  async getUsers(limit = 50, offset = 0): Promise<UserSummary[]> {
+    return apiFetch<UserSummary[]>(`/admin/users?limit=${limit}&offset=${offset}`);
+  },
+
+  /**
+   * Get activity log
+   */
+  async getActivityLog(limit = 50): Promise<ActivityLog[]> {
+    return apiFetch<ActivityLog[]>(`/admin/activity?limit=${limit}`);
+  },
+
+  /**
+   * Export activity report as CSV
+   */
+  async exportReport(): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/admin/export-report`, {
+      headers: {
+        'Authorization': `Bearer ${getToken()}`,
+      },
+    });
+
+    if (!response.ok) throw new Error('Failed to export report');
+
+    // Trigger download
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'user_activity_report.csv';
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  },
+};
+
 // Default export for convenience
 export default {
   auth: authApi,
@@ -751,4 +834,5 @@ export default {
   essay: essayApi,
   summary: summaryApi,
   diagram: diagramApi,
+  admin: adminApi,
 };

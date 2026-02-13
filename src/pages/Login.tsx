@@ -22,13 +22,13 @@ export default function Login() {
     setIsLoading(true);
     setNeedsVerification(false);
 
-    const { error } = await signIn(email, password);
+    const { error, role } = await signIn(email, password);
 
     if (error) {
       // Check if it's an email verification error (403 status or message contains 'verify')
       const errorMessage = error.message || "";
       const errorStatus = (error as any).status;
-      
+
       if (errorMessage.toLowerCase().includes("verify") || errorStatus === 403) {
         setNeedsVerification(true);
       } else {
@@ -39,7 +39,12 @@ export default function Login() {
     }
 
     toast.success("Welcome back! 🎉");
-    navigate("/");
+
+    if (role === 'admin') {
+      navigate("/admin");
+    } else {
+      navigate("/dashboard");
+    }
   };
 
   const handleGoogleSignIn = async () => {
@@ -78,10 +83,10 @@ export default function Login() {
                   <p className="text-sm text-muted-foreground">
                     Check your inbox for the verification link, or click below to resend.
                   </p>
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    size="sm" 
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
                     onClick={handleResendVerification}
                     className="mt-1"
                   >
@@ -134,7 +139,7 @@ export default function Login() {
                 "Sign In"
               )}
             </Button>
-            
+
             <div className="relative w-full">
               <div className="absolute inset-0 flex items-center">
                 <Separator className="w-full" />
@@ -143,7 +148,7 @@ export default function Login() {
                 <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
               </div>
             </div>
-            
+
             <Button
               type="button"
               variant="outline"
@@ -171,7 +176,7 @@ export default function Login() {
               </svg>
               Continue with Google
             </Button>
-            
+
             <p className="text-sm text-muted-foreground text-center">
               Don't have an account?{" "}
               <Link to="/signup" className="text-primary hover:underline font-medium">

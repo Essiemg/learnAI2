@@ -82,9 +82,9 @@ export default function Homepage() {
   return (
     <div className="min-h-full">
       {/* Hero Section - Split Layout */}
-      <section className="relative overflow-hidden min-h-[80vh] flex items-center">
+      <section className="relative overflow-hidden min-h-[calc(100vh-3rem)] flex items-center justify-center">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-accent/5 to-transparent" />
-        
+
         <div className="relative w-full max-w-7xl mx-auto px-6 py-12">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             {/* Left Side - Content */}
@@ -97,7 +97,7 @@ export default function Homepage() {
                   </span>
                 </h1>
                 <p className="text-lg md:text-xl text-muted-foreground max-w-lg">
-                  Your personal AI homework companion that helps you understand, not just answer. 
+                  Your personal AI homework companion that helps you understand, not just answer.
                   Built for learners from Primary to College.
                 </p>
               </div>
@@ -106,11 +106,11 @@ export default function Homepage() {
               <div className="bg-card/50 backdrop-blur-sm border rounded-2xl p-6 space-y-4">
                 <h2 className="text-xl font-semibold">About Toki</h2>
                 <p className="text-muted-foreground text-sm leading-relaxed">
-                  Toki is an AI-powered learning companion designed to help students think critically, 
-                  not just get answers. Using the Socratic method, Toki guides you through problems 
+                  Toki is an AI-powered learning companion designed to help students think critically,
+                  not just get answers. Using the Socratic method, Toki guides you through problems
                   step-by-step, building understanding and confidence along the way.
                 </p>
-                
+
                 {/* Education Levels */}
                 <div className="grid grid-cols-3 gap-3 pt-2">
                   {educationLevels.map((level) => (
@@ -148,8 +148,8 @@ export default function Homepage() {
 
             {/* Right Side - AI Tutor Scene */}
             <div className="relative h-[500px] lg:h-[600px] hidden lg:block">
-              <svg 
-                viewBox="0 0 500 600" 
+              <svg
+                viewBox="0 0 500 600"
                 className="w-full h-full drop-shadow-2xl"
                 xmlns="http://www.w3.org/2000/svg"
               >
@@ -193,24 +193,24 @@ export default function Homepage() {
                     <stop offset="0%" stopColor="#F6E05E" />
                     <stop offset="100%" stopColor="#ECC94B" />
                   </linearGradient>
-                  
+
                   {/* Filters */}
                   <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
-                    <feDropShadow dx="2" dy="4" stdDeviation="8" floodColor="#000" floodOpacity="0.15"/>
+                    <feDropShadow dx="2" dy="4" stdDeviation="8" floodColor="#000" floodOpacity="0.15" />
                   </filter>
                   <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-                    <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+                    <feGaussianBlur stdDeviation="4" result="coloredBlur" />
                     <feMerge>
-                      <feMergeNode in="coloredBlur"/>
-                      <feMergeNode in="SourceGraphic"/>
+                      <feMergeNode in="coloredBlur" />
+                      <feMergeNode in="SourceGraphic" />
                     </feMerge>
                   </filter>
                   <filter id="strongGlow" x="-100%" y="-100%" width="300%" height="300%">
-                    <feGaussianBlur stdDeviation="8" result="coloredBlur"/>
+                    <feGaussianBlur stdDeviation="8" result="coloredBlur" />
                     <feMerge>
-                      <feMergeNode in="coloredBlur"/>
-                      <feMergeNode in="coloredBlur"/>
-                      <feMergeNode in="SourceGraphic"/>
+                      <feMergeNode in="coloredBlur" />
+                      <feMergeNode in="coloredBlur" />
+                      <feMergeNode in="SourceGraphic" />
                     </feMerge>
                   </filter>
                 </defs>
@@ -242,7 +242,6 @@ export default function Homepage() {
                     <g filter="url(#strongGlow)">
                       <text x="300" y="505" fill="hsl(var(--accent))" fontWeight="bold">
                         8 × 4 = ?
-                        <animate attributeName="opacity" values="1;0.7;1" dur="1.5s" repeatCount="indefinite" />
                       </text>
                     </g>
                   </g>
@@ -254,117 +253,84 @@ export default function Homepage() {
                   {/* Screen */}
                   <rect x="92" y="315" width="156" height="210" rx="8" fill="url(#screenGrad)" />
                   {/* Screen glow effect */}
-                  <rect x="92" y="315" width="156" height="210" rx="8" fill="url(#glowGrad)" opacity="0.5">
-                    <animate attributeName="opacity" values="0.3;0.6;0.3" dur="2s" repeatCount="indefinite" />
-                  </rect>
+                  <rect x="92" y="315" width="156" height="210" rx="8" fill="url(#glowGrad)" opacity="0.5" />
                   {/* Home button */}
                   <circle cx="170" cy="535" r="8" fill="#4A5568" />
                 </g>
 
                 {/* Light burst from tablet */}
                 <g opacity="0.6">
-                  <ellipse cx="170" cy="380" rx="100" ry="80" fill="url(#glowGrad)" opacity="0.3">
-                    <animate attributeName="rx" values="100;120;100" dur="2s" repeatCount="indefinite" />
-                    <animate attributeName="ry" values="80;100;80" dur="2s" repeatCount="indefinite" />
-                  </ellipse>
+                  <ellipse cx="170" cy="380" rx="100" ry="80" fill="url(#glowGrad)" opacity="0.3" />
                 </g>
 
                 {/* AI Tutor Superhero Character - Emerging from tablet */}
                 <g className="ai-tutor" filter="url(#glow)">
                   {/* Glow aura behind character */}
-                  <ellipse cx="170" cy="280" rx="60" ry="70" fill="hsl(var(--primary))" opacity="0.2">
-                    <animate attributeName="rx" values="60;70;60" dur="2s" repeatCount="indefinite" />
-                    <animate attributeName="opacity" values="0.2;0.4;0.2" dur="2s" repeatCount="indefinite" />
-                  </ellipse>
-                  
+                  <ellipse cx="170" cy="280" rx="60" ry="70" fill="hsl(var(--primary))" opacity="0.2" />
+
                   {/* Cape */}
-                  <path d="M130 220 Q115 280 125 340 L170 320 L215 340 Q225 280 210 220 Z" fill="url(#capeGrad)" opacity="0.9">
-                    <animate attributeName="d" 
-                      values="M130 220 Q115 280 125 340 L170 320 L215 340 Q225 280 210 220 Z;
-                              M130 220 Q110 280 120 345 L170 325 L220 345 Q230 280 210 220 Z;
-                              M130 220 Q115 280 125 340 L170 320 L215 340 Q225 280 210 220 Z" 
-                      dur="3s" repeatCount="indefinite" />
-                  </path>
-                  
+                  <path d="M130 220 Q115 280 125 340 L170 320 L215 340 Q225 280 210 220 Z" fill="url(#capeGrad)" opacity="0.9" />
+
                   {/* Body */}
                   <ellipse cx="170" cy="280" rx="35" ry="45" fill="url(#heroGrad)" />
-                  
+
                   {/* Hero emblem on chest */}
                   <circle cx="170" cy="275" r="12" fill="white" opacity="0.9" />
                   <text x="164" y="280" fontSize="14" fill="hsl(var(--primary))" fontWeight="bold">T</text>
-                  
+
                   {/* Head */}
                   <circle cx="170" cy="200" r="35" fill="url(#skinGrad)" />
-                  
+
                   {/* Friendly face */}
                   {/* Eyes - big and friendly */}
                   <ellipse cx="158" cy="195" rx="10" ry="12" fill="white" />
                   <ellipse cx="182" cy="195" rx="10" ry="12" fill="white" />
-                  <circle cx="160" cy="197" r="6" fill="#2D3748">
-                    <animate attributeName="cx" values="160;162;160" dur="3s" repeatCount="indefinite" />
-                  </circle>
-                  <circle cx="184" cy="197" r="6" fill="#2D3748">
-                    <animate attributeName="cx" values="184;186;184" dur="3s" repeatCount="indefinite" />
-                  </circle>
+                  <circle cx="160" cy="197" r="6" fill="#2D3748" />
+                  <circle cx="184" cy="197" r="6" fill="#2D3748" />
                   {/* Eye sparkle */}
                   <circle cx="162" cy="194" r="2" fill="white" />
                   <circle cx="186" cy="194" r="2" fill="white" />
-                  
+
                   {/* Eyebrows - friendly */}
                   <path d="M148 182 Q158 178 168 182" fill="none" stroke="#4A5568" strokeWidth="2" strokeLinecap="round" />
                   <path d="M172 182 Q182 178 192 182" fill="none" stroke="#4A5568" strokeWidth="2" strokeLinecap="round" />
-                  
+
                   {/* Big warm smile */}
                   <path d="M155 212 Q170 228 185 212" fill="none" stroke="#E53E3E" strokeWidth="3" strokeLinecap="round" />
-                  
+
                   {/* Rosy cheeks */}
                   <ellipse cx="145" cy="205" rx="8" ry="5" fill="#FEB2B2" opacity="0.6" />
                   <ellipse cx="195" cy="205" rx="8" ry="5" fill="#FEB2B2" opacity="0.6" />
-                  
+
                   {/* Hair/helmet */}
                   <path d="M135 185 Q135 155 170 150 Q205 155 205 185" fill="url(#heroGrad)" />
-                  
+
                   {/* Left arm - waving */}
                   <g>
-                    <path d="M135 260 Q110 250 100 230" fill="none" stroke="url(#heroGrad)" strokeWidth="12" strokeLinecap="round">
-                      <animate attributeName="d" 
-                        values="M135 260 Q110 250 100 230;M135 260 Q105 245 95 220;M135 260 Q110 250 100 230" 
-                        dur="1s" repeatCount="indefinite" />
-                    </path>
-                    <circle cx="95" cy="218" r="10" fill="url(#skinGrad)">
-                      <animate attributeName="cy" values="218;208;218" dur="1s" repeatCount="indefinite" />
-                    </circle>
+                    <path d="M135 260 Q110 250 100 230" fill="none" stroke="url(#heroGrad)" strokeWidth="12" strokeLinecap="round" />
+                    <circle cx="95" cy="218" r="10" fill="url(#skinGrad)" />
                   </g>
-                  
+
                   {/* Right arm - holding wand pointing at paper */}
                   <path d="M205 260 Q240 280 280 350" fill="none" stroke="url(#heroGrad)" strokeWidth="12" strokeLinecap="round" />
                   <circle cx="283" cy="355" r="10" fill="url(#skinGrad)" />
-                  
+
                   {/* Magic Wand */}
                   <g filter="url(#glow)">
                     <line x1="290" y1="360" x2="330" y2="420" stroke="url(#wandGrad)" strokeWidth="6" strokeLinecap="round" />
                     {/* Star on wand tip */}
-                    <polygon 
-                      points="335,430 338,440 348,440 340,447 343,457 335,450 327,457 330,447 322,440 332,440" 
+                    <polygon
+                      points="335,430 338,440 348,440 340,447 343,457 335,450 327,457 330,447 322,440 332,440"
                       fill="#F6E05E"
                       filter="url(#strongGlow)"
-                    >
-                      <animate attributeName="opacity" values="1;0.6;1" dur="0.5s" repeatCount="indefinite" />
-                      <animateTransform attributeName="transform" type="rotate" values="0 335 445;10 335 445;0 335 445" dur="2s" repeatCount="indefinite" />
-                    </polygon>
+                    />
                   </g>
-                  
+
                   {/* Magic sparkles from wand to paper */}
                   <g>
-                    <circle cx="340" cy="450" r="3" fill="#F6E05E" filter="url(#glow)">
-                      <animate attributeName="opacity" values="1;0;1" dur="1s" repeatCount="indefinite" />
-                    </circle>
-                    <circle cx="355" cy="465" r="2" fill="hsl(var(--accent))" filter="url(#glow)">
-                      <animate attributeName="opacity" values="0;1;0" dur="1s" repeatCount="indefinite" />
-                    </circle>
-                    <circle cx="348" cy="475" r="2.5" fill="#F6E05E" filter="url(#glow)">
-                      <animate attributeName="opacity" values="1;0;1" dur="0.8s" repeatCount="indefinite" />
-                    </circle>
+                    <circle cx="340" cy="450" r="3" fill="#F6E05E" filter="url(#glow)" />
+                    <circle cx="355" cy="465" r="2" fill="hsl(var(--accent))" filter="url(#glow)" />
+                    <circle cx="348" cy="475" r="2.5" fill="#F6E05E" filter="url(#glow)" />
                   </g>
                 </g>
 
@@ -375,11 +341,7 @@ export default function Homepage() {
                   {/* Hand */}
                   <ellipse cx="395" cy="475" rx="20" ry="15" fill="url(#skinGrad)" transform="rotate(-30, 395, 475)" />
                   {/* Pointing finger */}
-                  <path d="M385 465 Q370 450 355 445" fill="none" stroke="url(#skinGrad)" strokeWidth="10" strokeLinecap="round">
-                    <animate attributeName="d" 
-                      values="M385 465 Q370 450 355 445;M385 465 Q368 448 352 442;M385 465 Q370 450 355 445" 
-                      dur="2s" repeatCount="indefinite" />
-                  </path>
+                  <path d="M385 465 Q370 450 355 445" fill="none" stroke="url(#skinGrad)" strokeWidth="10" strokeLinecap="round" />
                   {/* Other fingers curled */}
                   <path d="M400 480 Q405 495 400 505" fill="none" stroke="url(#skinGrad)" strokeWidth="7" strokeLinecap="round" />
                   <path d="M408 478 Q415 490 412 500" fill="none" stroke="url(#skinGrad)" strokeWidth="6" strokeLinecap="round" />
@@ -389,47 +351,21 @@ export default function Homepage() {
 
                 {/* Voice Wave Ripples - from child toward AI */}
                 <g className="voice-waves" opacity="0.7">
-                  <path d="M380 460 Q330 400 250 350" fill="none" stroke="hsl(var(--primary))" strokeWidth="3" strokeDasharray="8 4" opacity="0.6">
-                    <animate attributeName="stroke-dashoffset" values="0;24" dur="1s" repeatCount="indefinite" />
-                    <animate attributeName="opacity" values="0.6;0.2;0.6" dur="2s" repeatCount="indefinite" />
-                  </path>
-                  <path d="M375 450 Q320 395 240 340" fill="none" stroke="hsl(var(--accent))" strokeWidth="2" strokeDasharray="6 3" opacity="0.5">
-                    <animate attributeName="stroke-dashoffset" values="0;18" dur="0.8s" repeatCount="indefinite" />
-                    <animate attributeName="opacity" values="0.5;0.1;0.5" dur="2s" repeatCount="indefinite" />
-                  </path>
-                  <path d="M370 440 Q310 385 230 330" fill="none" stroke="hsl(var(--primary))" strokeWidth="2" strokeDasharray="4 4" opacity="0.4">
-                    <animate attributeName="stroke-dashoffset" values="0;16" dur="1.2s" repeatCount="indefinite" />
-                    <animate attributeName="opacity" values="0.4;0.1;0.4" dur="2s" repeatCount="indefinite" />
-                  </path>
-                  
+                  <path d="M380 460 Q330 400 250 350" fill="none" stroke="hsl(var(--primary))" strokeWidth="3" strokeDasharray="8 4" opacity="0.6" />
+                  <path d="M375 450 Q320 395 240 340" fill="none" stroke="hsl(var(--accent))" strokeWidth="2" strokeDasharray="6 3" opacity="0.5" />
+                  <path d="M370 440 Q310 385 230 330" fill="none" stroke="hsl(var(--primary))" strokeWidth="2" strokeDasharray="4 4" opacity="0.4" />
+
                   {/* Sound wave circles */}
-                  <circle cx="360" cy="430" r="8" fill="none" stroke="hsl(var(--primary))" strokeWidth="2" opacity="0">
-                    <animate attributeName="r" values="8;25;40" dur="2s" repeatCount="indefinite" />
-                    <animate attributeName="opacity" values="0.8;0.3;0" dur="2s" repeatCount="indefinite" />
-                  </circle>
-                  <circle cx="360" cy="430" r="8" fill="none" stroke="hsl(var(--accent))" strokeWidth="2" opacity="0">
-                    <animate attributeName="r" values="8;25;40" dur="2s" repeatCount="indefinite" begin="0.7s" />
-                    <animate attributeName="opacity" values="0.8;0.3;0" dur="2s" repeatCount="indefinite" begin="0.7s" />
-                  </circle>
+                  <circle cx="360" cy="430" r="8" fill="none" stroke="hsl(var(--primary))" strokeWidth="2" opacity="0.8" />
+                  <circle cx="360" cy="430" r="16" fill="none" stroke="hsl(var(--accent))" strokeWidth="2" opacity="0.6" />
                 </g>
 
                 {/* Floating sparkles/particles */}
                 <g className="particles">
-                  <circle cx="120" cy="250" r="3" fill="hsl(var(--accent))">
-                    <animate attributeName="cy" values="250;230;250" dur="3s" repeatCount="indefinite" />
-                    <animate attributeName="opacity" values="0.8;0.3;0.8" dur="3s" repeatCount="indefinite" />
-                  </circle>
-                  <circle cx="220" cy="270" r="2" fill="hsl(var(--primary))">
-                    <animate attributeName="cy" values="270;250;270" dur="2.5s" repeatCount="indefinite" />
-                    <animate attributeName="opacity" values="0.6;0.2;0.6" dur="2.5s" repeatCount="indefinite" />
-                  </circle>
-                  <circle cx="150" cy="350" r="2.5" fill="#F6E05E">
-                    <animate attributeName="cy" values="350;330;350" dur="2.8s" repeatCount="indefinite" />
-                    <animate attributeName="opacity" values="0.7;0.3;0.7" dur="2.8s" repeatCount="indefinite" />
-                  </circle>
-                  <circle cx="80" cy="300" r="2" fill="hsl(var(--accent))">
-                    <animate attributeName="cy" values="300;285;300" dur="3.2s" repeatCount="indefinite" />
-                  </circle>
+                  <circle cx="120" cy="250" r="3" fill="hsl(var(--accent))" />
+                  <circle cx="220" cy="270" r="2" fill="hsl(var(--primary))" />
+                  <circle cx="150" cy="350" r="2.5" fill="#F6E05E" />
+                  <circle cx="80" cy="300" r="2" fill="hsl(var(--accent))" />
                 </g>
 
                 {/* Subtle ambient light rays */}
@@ -445,12 +381,12 @@ export default function Homepage() {
       </section>
 
       {/* Benefits Section */}
-      <section className="py-16 px-6 bg-muted/30">
+      <section className="py-24 px-6 bg-muted/30">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold mb-4">Why Choose Toki?</h2>
             <p className="text-muted-foreground max-w-2xl mx-auto">
-              Toki is designed with students and parents in mind, offering a safe and effective 
+              Toki is designed with students and parents in mind, offering a safe and effective
               way to get learning help at any level.
             </p>
           </div>
@@ -474,7 +410,7 @@ export default function Homepage() {
       </section>
 
       {/* Features Grid */}
-      <section className="py-16 px-6">
+      <section className="py-24 px-6">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold mb-4">Learning Tools</h2>
@@ -503,7 +439,7 @@ export default function Homepage() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 px-6 bg-gradient-to-br from-primary/5 via-accent/5 to-transparent">
+      <section className="py-32 px-6 bg-gradient-to-br from-primary/5 via-accent/5 to-transparent">
         <div className="max-w-3xl mx-auto text-center">
           <h2 className="text-4xl font-bold mb-4">
             Ready to Learn{" "}

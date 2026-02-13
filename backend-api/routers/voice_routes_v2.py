@@ -26,66 +26,56 @@ router = APIRouter(prefix="/voice", tags=["voice"])
 
 # ============== GLOBAL STATE ==============
 _tts_model = None
-_tts_model_type = None
 _stt_model = None
 _stt_model_size = None
 
-
-# ============== VOICE EMOTION PRESETS (for kids) ==============
+# ============== PARLER VOICE PRESETS (Style Descriptions) ==============
+# These drive the Parler-TTS "description" prompt
 VOICE_EMOTIONS = {
     "friendly": {
-        "description": "Warm, welcoming, encouraging",
-        "exaggeration": 0.6,
-        "cfg_weight": 0.5,
-        "text_prefix": "",  # No prefix needed
+        "description": "A warm, high-quality female voice speaking slowly and clearly with a friendly tone.",
+        "text_prefix": "",
     },
     "excited": {
-        "description": "Enthusiastic, celebrating success",
-        "exaggeration": 0.8,
-        "cfg_weight": 0.4,
-        "text_prefix": "[excited] ",  # Chatterbox emotion tag
+        "description": "A female speaker with a high-pitched voice speaking excitedly and fast.",
+        "text_prefix": "",
     },
     "encouraging": {
-        "description": "Supportive, motivating after mistakes",
-        "exaggeration": 0.5,
-        "cfg_weight": 0.6,
+        "description": "A gentle, supportive female voice speaking slowly and encouragingly.",
         "text_prefix": "",
     },
     "calm": {
-        "description": "Soothing, patient for difficult topics",
-        "exaggeration": 0.3,
-        "cfg_weight": 0.7,
+        "description": "A calm, soothing female voice speaking slowly and quietly.",
         "text_prefix": "",
     },
     "playful": {
-        "description": "Fun, engaging for young learners",
-        "exaggeration": 0.7,
-        "cfg_weight": 0.4,
-        "text_prefix": "[playful] ",
+        "description": "A playful, energetic female voice speaking with a happy tone.",
+        "text_prefix": "",
     },
+    # Male variants
+    "friendly_male": {
+         "description": "A warm, high-quality male voice speaking slowly and clearly with a friendly tone.",
+         "text_prefix": "",
+    }
 }
 
-# Age-appropriate voice settings
+# Age-appropriate voice settings (Modifies the description)
 AGE_VOICE_SETTINGS = {
     "primary": {  # 5-10 years
         "default_emotion": "playful",
-        "speaking_rate": 0.9,  # Slightly slower
-        "pitch_shift": 1.05,   # Slightly higher pitch
+        "description_modifier": "speaking clearly and simply for a child.",
     },
     "middle_school": {  # 11-13 years
         "default_emotion": "friendly",
-        "speaking_rate": 1.0,
-        "pitch_shift": 1.0,
+        "description_modifier": "speaking in a clear, engaging educational tone.",
     },
     "high_school": {  # 14-18 years
         "default_emotion": "encouraging",
-        "speaking_rate": 1.0,
-        "pitch_shift": 1.0,
+        "description_modifier": "speaking in a professional but encouraging tone.",
     },
     "adult": {  # 18+
         "default_emotion": "calm",
-        "speaking_rate": 1.0,
-        "pitch_shift": 1.0,
+        "description_modifier": "speaking in a calm, professional tone.",
     },
 }
 
@@ -94,17 +84,17 @@ AGE_VOICE_SETTINGS = {
 class TTSRequest(BaseModel):
     """Request for text-to-speech synthesis."""
     text: str = Field(..., min_length=1, max_length=5000)
-    emotion: Optional[Literal["friendly", "excited", "encouraging", "calm", "playful"]] = "friendly"
+    emotion: Optional[str] = "friendly" # Now maps to Parler descriptions
     age_group: Optional[Literal["primary", "middle_school", "high_school", "adult"]] = None
-    voice_prompt_path: Optional[str] = None
-    exaggeration: Optional[float] = Field(None, ge=0.0, le=1.0)
-    cfg_weight: Optional[float] = Field(None, ge=0.0, le=1.0)
+    voice_prompt_path: Optional[str] = None # Ignored for Parler (uses description)
+    exaggeration: Optional[float] = None # Ignored
+    cfg_weight: Optional[float] = None # Ignored
 
 
 class TTSResponse(BaseModel):
     """Response with audio data."""
     audio_base64: Optional[str] = None
-    sample_rate: int = 24000
+    sample_rate: int = 44100 # Parler is usually 44.1k
     duration_seconds: Optional[float] = None
     emotion_used: str = "friendly"
 
@@ -135,48 +125,21 @@ class VoiceConversationResponse(BaseModel):
     user_text: str  # What the user said
     ai_text: str    # What the AI responds
     audio_base64: str  # AI response as audio
-    sample_rate: int = 24000
+    sample_rate: int = 44100
     duration_seconds: float
 
 
 # ============== TTS FUNCTIONS ==============
-def load_tts_model(device: str = "cpu", model_type: str = "standard"):
-    """Load Chatterbox TTS model."""
-    global _tts_model, _tts_model_type
-    
-    if _tts_model is not None:
-        return _tts_model
-    
-    try:
-        import torch
-        
-        if device == "cuda" and not torch.cuda.is_available():
-            logger.warning("CUDA not available, using CPU")
-            device = "cpu"
-        
-        # Try standard model (more stable, doesn't require HF login)
-        try:
-            from chatterbox.tts import ChatterboxTTS
-            logger.info(f"Loading Chatterbox TTS ({model_type}) on {device}...")
-            _tts_model = ChatterboxTTS.from_pretrained(device=device)
-            _tts_model_type = "standard"
-            logger.info("✅ Chatterbox TTS loaded!")
-            return _tts_model
-        except Exception as e:
-            logger.error(f"Failed to load Chatterbox: {e}")
-            return None
-            
-    except ImportError as e:
-        logger.error(f"Chatterbox not installed: {e}")
-        return None
-
+from services.piper_inference import piper_tts
 
 def get_tts_model():
-    """Get or load TTS model."""
-    global _tts_model
-    if _tts_model is None:
-        load_tts_model(device="cpu")
-    return _tts_model
+    """Get or load Piper TTS model."""
+    try:
+        piper_tts.load_model()
+        return piper_tts
+    except Exception as e:
+        logger.error(f"Failed to load Piper TTS: {e}")
+        return None
 
 
 def generate_speech_with_emotion(
@@ -188,62 +151,24 @@ def generate_speech_with_emotion(
     custom_cfg_weight: Optional[float] = None,
 ) -> tuple:
     """
-    Generate speech with emotion and age-appropriate settings.
+    Generate speech using Piper TTS (ONNX).
     
     Returns:
-        Tuple of (audio_bytes, sample_rate, duration)
+        Tuple of (audio_bytes, sample_rate, duration, emotion_used)
     """
-    global _tts_model
-    
     model = get_tts_model()
     if model is None:
         raise HTTPException(status_code=503, detail="TTS model not available")
     
     try:
-        import torch
-        import torchaudio as ta
+        # Piper doesn't support emotions natively like Parler descrioptions
+        # We just use the model (e.g. 'amy')
+        # We can simulate emotions by speed changes if desired, but for now we keep it simple.
         
-        # Get emotion settings
-        emotion_settings = VOICE_EMOTIONS.get(emotion, VOICE_EMOTIONS["friendly"])
-        
-        # Override with age-specific settings if provided
-        if age_group and age_group in AGE_VOICE_SETTINGS:
-            age_settings = AGE_VOICE_SETTINGS[age_group]
-            if emotion == "friendly":  # Use age-default only if no specific emotion
-                emotion = age_settings["default_emotion"]
-                emotion_settings = VOICE_EMOTIONS.get(emotion, VOICE_EMOTIONS["friendly"])
-        
-        # Prepare text with emotion prefix if available
-        processed_text = emotion_settings.get("text_prefix", "") + text.strip()
-        
-        # Get exaggeration and cfg_weight
-        exaggeration = custom_exaggeration if custom_exaggeration is not None else emotion_settings["exaggeration"]
-        cfg_weight = custom_cfg_weight if custom_cfg_weight is not None else emotion_settings["cfg_weight"]
+        logger.info(f"Generating Piper TTS. Text: '{text[:30]}...'")
         
         # Generate audio
-        if voice_prompt_path and os.path.exists(voice_prompt_path):
-            wav = model.generate(
-                processed_text,
-                audio_prompt_path=voice_prompt_path,
-                exaggeration=exaggeration,
-                cfg_weight=cfg_weight
-            )
-        else:
-            wav = model.generate(
-                processed_text,
-                exaggeration=exaggeration,
-                cfg_weight=cfg_weight
-            )
-        
-        sample_rate = model.sr
-        
-        # Convert to WAV bytes
-        buffer = io.BytesIO()
-        ta.save(buffer, wav, sample_rate, format="wav")
-        buffer.seek(0)
-        audio_bytes = buffer.read()
-        
-        duration = wav.shape[-1] / sample_rate
+        audio_bytes, sample_rate, duration = model.generate(text)
         
         return audio_bytes, sample_rate, duration, emotion
         
@@ -498,12 +423,12 @@ async def list_emotions():
 @router.get("/status")
 async def voice_status():
     """Check status of TTS and STT models."""
-    global _tts_model, _tts_model_type, _stt_model, _stt_model_size
+    global _stt_model, _stt_model_size
     
     tts_status = {
-        "loaded": _tts_model is not None,
-        "model_type": _tts_model_type,
-        "sample_rate": _tts_model.sr if _tts_model and hasattr(_tts_model, "sr") else None,
+        "loaded": piper_tts.voice is not None,
+        "model_type": "piper-tts (onnx)",
+        "sample_rate": 22050, # Usually 22050 for Piper medium models
     }
     
     stt_status = {
@@ -513,7 +438,7 @@ async def voice_status():
     
     # Check if libraries are installed
     try:
-        import chatterbox
+        import parler_tts as pt
         tts_status["installed"] = True
     except ImportError:
         tts_status["installed"] = False
@@ -540,11 +465,17 @@ async def load_models(
     results = {}
     
     # Load TTS
-    tts_model = load_tts_model(device=tts_device)
-    results["tts"] = {
-        "success": tts_model is not None,
-        "device": tts_device,
-    }
+    try:
+        piper_tts.load_model()
+        results["tts"] = {
+            "success": True,
+            "device": "cpu (onnx)",
+        }
+    except Exception as e:
+        results["tts"] = {
+            "success": False,
+            "error": str(e),
+        }
     
     # Load STT
     stt_model = load_stt_model(model_size=stt_model_size)

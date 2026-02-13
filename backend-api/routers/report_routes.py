@@ -95,7 +95,8 @@ async def generate_ai_feedback(
     average_score: float,
     topics: List[str],
     recent_scores: List[float],
-    study_streak: int
+    study_streak: int,
+    weak_topics: List[str] = []
 ) -> str:
     """Generate personalized AI feedback using Gemini."""
     if not GEMINI_AVAILABLE or not os.getenv("GEMINI_API_KEY"):
@@ -112,8 +113,9 @@ async def generate_ai_feedback(
 - Topics studied: {', '.join(topics[:5]) if topics else 'None yet'}
 - Recent scores: {recent_scores[:5] if recent_scores else 'No recent quizzes'}
 - Current study streak: {study_streak} days
+- Weak Areas (need focus): {', '.join(weak_topics) if weak_topics else 'None identified yet'}
 
-Be encouraging, friendly, and give specific, actionable advice. Keep it concise. Use emoji sparingly (1-2 max)."""
+Be encouraging but constructive. If there are weak areas, suggest specific study strategies for them. Keep it concise. Use emoji sparingly (1-2 max)."""
 
         response = await model.generate_content_async(prompt)
         return response.text.strip()
@@ -313,7 +315,8 @@ async def generate_progress_report(
         average_score=average_score,
         topics=topics_studied,
         recent_scores=recent_scores,
-        study_streak=study_streak
+        study_streak=study_streak,
+        weak_topics=weak_topics
     )
     
     # Generate recommendations
@@ -371,10 +374,16 @@ async def get_quick_summary(
         QuizAttempt.user_id == user_id
     ).scalar() or 0
     
+    # Tutor sessions (Interactions)
+    tutor_sessions = db.query(func.count(Interaction.id)).filter(
+        Interaction.user_id == user_id
+    ).scalar() or 0
+
     return {
         "total_quizzes": quiz_count,
         "total_flashcards": flashcard_count,
         "total_summaries": summary_count,
         "total_diagrams": diagram_count,
-        "average_score": round(float(avg_score), 1)
+        "average_score": round(float(avg_score), 1),
+        "tutor_sessions": tutor_sessions
     }

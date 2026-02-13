@@ -6,7 +6,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
 from db import get_db
-from models import User, QuizSession
+from db import get_db
+from models import User, QuizSession, StudyEvent
 from schemas import QuizGenerateRequest, QuizSessionResponse, QuizSubmit
 from auth import get_current_user
 from ml_models import generate_quiz_questions
@@ -127,6 +128,7 @@ async def submit_quiz(
     
     score = (correct / len(questions)) * 100 if questions else 0
     
+    
     # Update session
     session.answers = answers
     session.score = score
@@ -134,6 +136,23 @@ async def submit_quiz(
     
     db.commit()
     db.refresh(session)
+    
+    # Log study event
+    event = StudyEvent(
+        user_id=current_user.id,
+        event_type="quiz_completion",
+        subject=session.topic or session.title,  # Using topic as subject
+        topic=session.topic,
+        duration_seconds=0,  # Could calculate if we tracked start time in request
+        score=score,
+        event_data={
+            "quiz_id": str(quiz_id),
+            "total_questions": len(questions),
+            "correct_answers": correct
+        }
+    )
+    db.add(event)
+    db.commit()
     
     return session
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Navigate, Link } from "react-router-dom";
-import { 
+import {
   BarChart3, TrendingUp, Clock, Flame, BookOpen, Target, Award,
   MessageSquare, Brain, FileText, PenTool, BarChart, ArrowRight,
   Sparkles, GraduationCap, School, Loader2
@@ -60,7 +60,7 @@ export default function Dashboard() {
   const { currentTopic } = useTopic();
   const { user, profile, isLoading: authLoading } = useAuth();
   const { userEducation, userSubjects, isLoading: eduLoading, needsOnboarding } = useEducationContext();
-  
+
   const [streakData, setStreakData] = useState<StreakData>({
     currentStreak: 0,
     longestStreak: 0,
@@ -75,31 +75,50 @@ export default function Dashboard() {
 
   // Load streak data from localStorage
   useEffect(() => {
-    const oldStreaks = localStorage.getItem("studybuddy_streaks");
-    if (oldStreaks && !localStorage.getItem("toki_streaks")) {
-      localStorage.setItem("toki_streaks", oldStreaks);
-      localStorage.removeItem("studybuddy_streaks");
-    }
-    const oldActivity = localStorage.getItem("studybuddy_activity");
-    if (oldActivity && !localStorage.getItem("toki_activity")) {
-      localStorage.setItem("toki_activity", oldActivity);
-      localStorage.removeItem("studybuddy_activity");
-    }
-
     const stored = localStorage.getItem("toki_streaks");
     if (stored) {
       try {
         setStreakData(JSON.parse(stored));
-      } catch {}
-    }
-
-    const activity = localStorage.getItem("toki_activity");
-    if (activity) {
-      try {
-        setActivityData(JSON.parse(activity));
-      } catch {}
+      } catch { }
     }
   }, []);
+
+  // Fetch activity data from API
+  useEffect(() => {
+    const fetchActivityData = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+
+        const response = await fetch('http://localhost:8000/api/reports/summary', {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setActivityData({
+            tutorSessions: data.tutor_sessions || 0,
+            flashcardsStudied: data.total_flashcards || 0,
+            quizzesCompleted: data.total_quizzes || 0,
+            essaysSubmitted: data.total_summaries || 0, // Mapping summaries to essays/writing
+          });
+        }
+      } catch (error) {
+        console.error("Failed to fetch activity data:", error);
+        // Fallback to local storage if API fails
+        const activity = localStorage.getItem("toki_activity");
+        if (activity) {
+          try {
+            setActivityData(JSON.parse(activity));
+          } catch { }
+        }
+      }
+    };
+
+    fetchActivityData();
+  }, [user]);
 
   if (authLoading || eduLoading) {
     return (
@@ -203,7 +222,7 @@ export default function Dashboard() {
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
       {/* Header with Education Context */}
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
@@ -226,7 +245,7 @@ export default function Dashboard() {
 
       {/* Subject Badges */}
       {userSubjects.length > 0 && (
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.2 }}
@@ -316,9 +335,9 @@ export default function Dashboard() {
                   Complete 7 learning activities this week
                 </p>
               </div>
-              <ProgressRing 
-                progress={weeklyProgress} 
-                size={80} 
+              <ProgressRing
+                progress={weeklyProgress}
+                size={80}
                 strokeWidth={6}
                 showLabel={true}
               />
@@ -430,28 +449,28 @@ export default function Dashboard() {
             <p className="text-sm text-muted-foreground">Your learning activities summary</p>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <motion.div 
+            <motion.div
               whileHover={{ scale: 1.05 }}
               className="text-center p-4 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20"
             >
               <p className="text-3xl font-bold text-primary">{activityData.tutorSessions}</p>
               <p className="text-sm text-muted-foreground">Tutor Sessions</p>
             </motion.div>
-            <motion.div 
+            <motion.div
               whileHover={{ scale: 1.05 }}
               className="text-center p-4 rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 border border-emerald-500/20"
             >
               <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{activityData.flashcardsStudied}</p>
               <p className="text-sm text-muted-foreground">Flashcards</p>
             </motion.div>
-            <motion.div 
+            <motion.div
               whileHover={{ scale: 1.05 }}
               className="text-center p-4 rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-500/5 border border-amber-500/20"
             >
               <p className="text-3xl font-bold text-amber-600 dark:text-amber-400">{activityData.quizzesCompleted}</p>
               <p className="text-sm text-muted-foreground">Quizzes</p>
             </motion.div>
-            <motion.div 
+            <motion.div
               whileHover={{ scale: 1.05 }}
               className="text-center p-4 rounded-xl bg-gradient-to-br from-pink-500/20 to-pink-500/5 border border-pink-500/20"
             >

@@ -31,43 +31,21 @@ from config import get_settings
 settings = get_settings()
 
 # Default to SQLite if DATABASE_URL not set
-DATABASE_URL = settings.DATABASE_URL or "sqlite:///./learnai.db"
+DATABASE_URL = settings.SQLALCHEMY_DATABASE_URL
 
 # =============================================================================
 # SQLAlchemy Engine Configuration
 # =============================================================================
-# SQLite configuration differs from PostgreSQL
-
-# Check if using SQLite
-is_sqlite = DATABASE_URL.startswith("sqlite")
-
-if is_sqlite:
-    # SQLite-specific settings
-    engine = create_engine(
-        DATABASE_URL,
-        connect_args={"check_same_thread": False},  # Allow multi-threaded access
-        echo=settings.DEBUG,
-    )
-    
-    # Enable foreign key support in SQLite (disabled by default)
-    @event.listens_for(engine, "connect")
-    def set_sqlite_pragma(dbapi_connection, connection_record):
-        cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.close()
-    
-    logger.info(f"SQLite database: {DATABASE_URL.replace('sqlite:///', '')}")
-else:
-    # PostgreSQL or other databases
-    engine = create_engine(
-        DATABASE_URL,
-        pool_pre_ping=True,
-        pool_size=5,
-        max_overflow=10,
-        pool_recycle=3600,
-        echo=settings.DEBUG,
-    )
-    logger.info(f"Database engine created for: {DATABASE_URL.split('@')[-1]}")
+# MySQL configuration
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+    pool_size=10,
+    max_overflow=20,
+    pool_recycle=3600,
+    echo=settings.DEBUG,
+)
+logger.info(f"Database engine created for: {settings.DB_HOST}/{settings.DB_NAME}")
 
 # =============================================================================
 # Session Factory
