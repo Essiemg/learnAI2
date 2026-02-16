@@ -5,8 +5,8 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 export function useSpeech() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  // Default to browser TTS for faster response - Chatterbox is too slow on CPU
-  const [useChatterbox, setUseChatterbox] = useState(false);
+  // Default to backend TTS (Piper)
+  const [useChatterbox, setUseChatterbox] = useState(true);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -15,16 +15,16 @@ export function useSpeech() {
     const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.rate = 1.0;
     utterance.pitch = 1.0;
-    
+
     utterance.onstart = () => {
       setIsSpeaking(true);
       setIsLoading(false);
     };
-    
+
     utterance.onend = () => {
       setIsSpeaking(false);
     };
-    
+
     utterance.onerror = (e) => {
       console.error("Speech synthesis error:", e);
       setIsSpeaking(false);
@@ -60,14 +60,15 @@ export function useSpeech() {
     if (useChatterbox) {
       try {
         const token = localStorage.getItem("token");
-        
-        const response = await fetch(`${API_URL}/voice/synthesize`, {
+
+        // Use the /voice/tts endpoint from voice_routes_v2.py
+        const response = await fetch(`${API_URL}/voice/tts`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
-          body: JSON.stringify({ text: cleanText }),
+          body: JSON.stringify({ text: cleanText, emotion: "friendly" }),
           signal: abortControllerRef.current.signal,
         });
 
@@ -82,21 +83,21 @@ export function useSpeech() {
         // Create audio from the response
         const audioBlob = await response.blob();
         const audioUrl = URL.createObjectURL(audioBlob);
-        
+
         const audio = new Audio(audioUrl);
         audioRef.current = audio;
-        
+
         audio.onplay = () => {
           setIsSpeaking(true);
           setIsLoading(false);
         };
-        
+
         audio.onended = () => {
           setIsSpeaking(false);
           URL.revokeObjectURL(audioUrl);
           audioRef.current = null;
         };
-        
+
         audio.onerror = (e) => {
           console.error("Audio playback error:", e);
           setIsSpeaking(false);
@@ -107,7 +108,7 @@ export function useSpeech() {
         };
 
         await audio.play();
-        
+
       } catch (error) {
         if (error instanceof Error && error.name === "AbortError") {
           console.log("TTS request aborted");

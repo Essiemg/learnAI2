@@ -130,15 +130,15 @@ class VoiceConversationResponse(BaseModel):
 
 
 # ============== TTS FUNCTIONS ==============
-from services.piper_inference import piper_tts
+from services import coqui_inference
 
 def get_tts_model():
-    """Get or load Piper TTS model."""
+    """Get or load Coqui TTS model."""
     try:
-        piper_tts.load_model()
-        return piper_tts
+        model = coqui_inference.load_model()
+        return model
     except Exception as e:
-        logger.error(f"Failed to load Piper TTS: {e}")
+        logger.error(f"Failed to load Coqui TTS: {e}")
         return None
 
 
@@ -151,7 +151,7 @@ def generate_speech_with_emotion(
     custom_cfg_weight: Optional[float] = None,
 ) -> tuple:
     """
-    Generate speech using Piper TTS (ONNX).
+    Generate speech using Coqui TTS (VITS).
     
     Returns:
         Tuple of (audio_bytes, sample_rate, duration, emotion_used)
@@ -161,14 +161,10 @@ def generate_speech_with_emotion(
         raise HTTPException(status_code=503, detail="TTS model not available")
     
     try:
-        # Piper doesn't support emotions natively like Parler descrioptions
-        # We just use the model (e.g. 'amy')
-        # We can simulate emotions by speed changes if desired, but for now we keep it simple.
-        
-        logger.info(f"Generating Piper TTS. Text: '{text[:30]}...'")
+        logger.info(f"Generating Coqui TTS. Text: '{text[:30]}...'")
         
         # Generate audio
-        audio_bytes, sample_rate, duration = model.generate(text)
+        audio_bytes, sample_rate, duration = coqui_inference.generate_speech(text)
         
         return audio_bytes, sample_rate, duration, emotion
         
@@ -426,9 +422,9 @@ async def voice_status():
     global _stt_model, _stt_model_size
     
     tts_status = {
-        "loaded": piper_tts.voice is not None,
-        "model_type": "piper-tts (onnx)",
-        "sample_rate": 22050, # Usually 22050 for Piper medium models
+        "loaded": coqui_inference._tts is not None,
+        "model_type": "coqui-tts (vits)",
+        "sample_rate": 22050, 
     }
     
     stt_status = {
@@ -438,7 +434,7 @@ async def voice_status():
     
     # Check if libraries are installed
     try:
-        import parler_tts as pt
+        import TTS
         tts_status["installed"] = True
     except ImportError:
         tts_status["installed"] = False
@@ -466,10 +462,10 @@ async def load_models(
     
     # Load TTS
     try:
-        piper_tts.load_model()
+        coqui_inference.load_model()
         results["tts"] = {
             "success": True,
-            "device": "cpu (onnx)",
+            "device": coqui_inference.get_device(),
         }
     except Exception as e:
         results["tts"] = {
