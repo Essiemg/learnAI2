@@ -88,28 +88,46 @@ export function useQuizHistory() {
       questions: Question[],
       answers: Record<string, number>,
       score: number | null,
-      isCompleted: boolean
+      isCompleted: boolean,
+      sessionId?: string
     ) => {
       if (!user || questions.length === 0) return null;
 
       try {
-        // Generate quiz via API
-        const session = await quizApi.generate(topic, questions.length || 5);
-        
+        let currentSessionId = sessionId;
+
+        // If no session ID provided, generate a new one (legacy behavior fallback)
+        if (!currentSessionId) {
+          const session = await quizApi.generate(topic, questions.length || 5);
+          currentSessionId = session.id;
+        }
+
         // If there are answers to submit
         if (isCompleted && Object.keys(answers).length > 0) {
           const answerArray = questions.map((q) => answers[q.id] || 0);
-          await quizApi.submit(session.id, answerArray);
+          await quizApi.submit(currentSessionId, answerArray);
         }
-        
+
         await loadSessions();
-        return session.id;
+        return currentSessionId;
       } catch (error) {
         console.error("Error saving quiz session:", error);
         return null;
       }
     },
     [user, loadSessions]
+  );
+
+  const saveProgress = useCallback(
+    async (sessionId: string, questions: Question[], answers: Record<string, number>) => {
+      try {
+        const answerArray = questions.map((q) => answers[q.id] || 0);
+        await quizApi.updateProgress(sessionId, answerArray);
+      } catch (error) {
+        console.error("Error saving progress:", error);
+      }
+    },
+    []
   );
 
   const updateSession = useCallback(
@@ -163,6 +181,7 @@ export function useQuizHistory() {
     sessions,
     isLoading,
     saveSession,
+    saveProgress,
     updateSession,
     loadSession,
     deleteSession,

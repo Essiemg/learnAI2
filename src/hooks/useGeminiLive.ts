@@ -306,7 +306,7 @@ export function useGeminiLive({
     if (fieldOfStudy) params.append("fieldOfStudy", fieldOfStudy);
     if (subjects && subjects.length > 0) params.append("subjects", subjects.join(","));
 
-    const wsUrl = `${WS_URL}/ws/live-lecture?${params.toString()}`;
+    const wsUrl = `${WS_URL}/api/v2/voice/ws/live-lecture?${params.toString()}`;
     console.log("Connecting to Live Lecture:", wsUrl);
 
     const ws = new WebSocket(wsUrl);

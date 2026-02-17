@@ -42,7 +42,7 @@ export default function Flashcards() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentSessionTopic, setCurrentSessionTopic] = useState<string | null>(null);
   const { speak, stop, isSpeaking } = useSpeech();
-  
+
   const [count, setCount] = useState<string>("5");
   const [difficulty, setDifficulty] = useState<string>("medium");
   const [selectedMaterials, setSelectedMaterials] = useState<SelectedMaterial[]>([]);
@@ -77,7 +77,16 @@ export default function Flashcards() {
     try {
       // Use the new API to generate flashcards
       const topic = currentTopic?.name || selectedMaterials[0]?.name || "General";
-      const session = await flashcardApi.generate(topic, parseInt(count));
+
+      let attachments = undefined;
+      if (selectedMaterials.length > 0) {
+        attachments = selectedMaterials.map(m => ({
+          type: m.type || "application/octet-stream",
+          content: m.base64
+        }));
+      }
+
+      const session = await flashcardApi.generate(topic, parseInt(count), undefined, attachments);
 
       if (session?.cards) {
         const formattedCards = session.cards.map((card: any, idx: number) => ({
@@ -226,14 +235,48 @@ export default function Flashcards() {
               </SelectContent>
             </Select>
           </div>
-          <Button
-            variant="outline"
-            onClick={() => setShowMaterials(!showMaterials)}
-            className="gap-2"
-          >
-            <FolderOpen className="h-4 w-4" />
-            {selectedMaterials.length > 0 ? selectedMaterials[0].name : "Select Material"}
-          </Button>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <Button
+              variant="outline"
+              onClick={() => document.getElementById('flashcard-file-upload')?.click()}
+              className="gap-2 flex-1 sm:flex-none"
+            >
+              <FolderOpen className="h-4 w-4" />
+              {selectedMaterials.length > 0 && selectedMaterials[0].type !== 'study_set' ? selectedMaterials[0].name : "Upload File"}
+            </Button>
+            <input
+              id="flashcard-file-upload"
+              type="file"
+              className="hidden"
+              accept="image/*,.pdf"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  const reader = new FileReader();
+                  reader.onloadend = () => {
+                    const base64 = reader.result as string;
+                    setSelectedMaterials([{
+                      id: 'upload',
+                      name: file.name,
+                      type: file.type,
+                      base64: base64
+                    }]);
+                    toast.success("File attached");
+                  };
+                  reader.readAsDataURL(file);
+                }
+              }}
+            />
+
+            <Button
+              variant="outline"
+              onClick={() => setShowMaterials(!showMaterials)}
+              className="gap-2 flex-1 sm:flex-none"
+            >
+              <FolderOpen className="h-4 w-4" />
+              Select from Sets
+            </Button>
+          </div>
         </div>
 
         <Collapsible open={showMaterials}>

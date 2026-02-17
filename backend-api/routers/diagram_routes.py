@@ -1,29 +1,28 @@
-"""
-Diagram generation and management routes
-"""
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import desc
 from pydantic import BaseModel
 from typing import Optional, List, Literal
-from uuid import uuid4
 from datetime import datetime
-import re
 
 from db import get_db
 from auth import get_current_user
-from models import User
+from models import User, Diagram
 from ml_models import generate_diagram_mermaid
 
 router = APIRouter(prefix="/diagrams", tags=["diagrams"])
 
 
-class Diagram(BaseModel):
+class DiagramResponse(BaseModel):
     id: str
     title: str
     mermaid_code: str
-    diagram_type: Literal["flowchart", "mindmap"]
+    diagram_type: str
     source_text: Optional[str] = None
-    created_at: str
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
 
 
 class GenerateRequest(BaseModel):
@@ -32,21 +31,22 @@ class GenerateRequest(BaseModel):
     is_base64: bool = False
 
 
-# In-memory storage for diagrams (replace with DB table if needed)
-_diagram_storage: dict = {}
-
-
-@router.get("", response_model=List[Diagram])
+@router.get("", response_model=List[DiagramResponse])
 async def get_diagrams(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Get all diagrams for the current user"""
-    user_diagrams = _diagram_storage.get(str(current_user.id), [])
-    return user_diagrams
+    diagrams = (
+        db.query(Diagram)
+        .filter(Diagram.user_id == current_user.id)
+        .order_by(desc(Diagram.created_at))
+        .all()
+    )
+    return diagrams
 
 
-@router.post("/generate", response_model=Diagram)
+@router.post("/generate", response_model=DiagramResponse)
 async def generate_diagram(
     request: GenerateRequest,
     current_user: User = Depends(get_current_user),
@@ -57,56 +57,85 @@ async def generate_diagram(
     diagram_type = request.diagram_type
     
     # Generate mermaid code using the AI model
-    mermaid_code = generate_diagram_mermaid(
-        content=content,
-        diagram_type=diagram_type,
-        grade=current_user.grade
-    )
+    if request.is_base64:
+        # TODO: Implement multimodal diagram generation
+        mermaid_code = "graph TD;\n    A[Document Uploaded] --> B[Processing...];\n    B --> C[Details Coming Soon];"
+    else:
+        mermaid_code = generate_diagram_mermaid(
+            content=content,
+            diagram_type=diagram_type,
+            grade=current_user.grade
+        )
     
     # Create title from first 50 chars
     title = content[:50] + ("..." if len(content) > 50 else "") if not request.is_base64 else "Document Diagram"
     
-    diagram_id = str(uuid4())
-    diagram = Diagram(
-        id=diagram_id,
+    new_diagram = Diagram(
+        user_id=current_user.id,
         title=title,
         mermaid_code=mermaid_code,
         diagram_type=diagram_type,
-        source_text=content if not request.is_base64 else None,
-        created_at=datetime.utcnow().isoformat()
+        source_content=content if not request.is_base64 else None,
+        subject="General" # Default subject
     )
     
-    # Store diagram
-    user_id = str(current_user.id)
-    if user_id not in _diagram_storage:
-        _diagram_storage[user_id] = []
-    _diagram_storage[user_id].insert(0, diagram.model_dump())
+    db.add(new_diagram)
+    db.commit()
+    db.refresh(new_diagram)
     
-    return diagram
+    return DiagramResponse(
+        id=str(new_diagram.id),
+        title=new_diagram.title,
+        mermaid_code=new_diagram.mermaid_code,
+        diagram_type=new_diagram.diagram_type,
+        source_text=new_diagram.source_content,
+        created_at=new_diagram.created_at
+    )
 
 
-@router.get("/{diagram_id}", response_model=Diagram)
+@router.get("/{diagram_id}", response_model=DiagramResponse)
 async def get_diagram(
     diagram_id: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """Get a specific diagram"""
-    user_diagrams = _diagram_storage.get(str(current_user.id), [])
-    for diagram in user_diagrams:
-        if diagram["id"] == diagram_id:
-            return diagram
-    raise HTTPException(status_code=404, detail="Diagram not found")
+    diagram = (
+        db.query(Diagram)
+        .filter(Diagram.id == diagram_id, Diagram.user_id == current_user.id)
+        .first()
+    )
+    
+    if not diagram:
+        raise HTTPException(status_code=404, detail="Diagram not found")
+        
+    return DiagramResponse(
+        id=str(diagram.id),
+        title=diagram.title,
+        mermaid_code=diagram.mermaid_code,
+        diagram_type=diagram.diagram_type,
+        source_text=diagram.source_content,
+        created_at=diagram.created_at
+    )
 
 
 @router.delete("/{diagram_id}")
 async def delete_diagram(
     diagram_id: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """Delete a diagram"""
-    user_id = str(current_user.id)
-    if user_id in _diagram_storage:
-        _diagram_storage[user_id] = [
-            d for d in _diagram_storage[user_id] if d["id"] != diagram_id
-        ]
+    diagram = (
+        db.query(Diagram)
+        .filter(Diagram.id == diagram_id, Diagram.user_id == current_user.id)
+        .first()
+    )
+    
+    if not diagram:
+        raise HTTPException(status_code=404, detail="Diagram not found")
+        
+    db.delete(diagram)
+    db.commit()
+    
     return {"status": "deleted"}

@@ -1,18 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-
-interface Diagram {
-  id: string;
-  title: string | null;
-  source_text: string | null;
-  diagram_type: string;
-  mermaid_code: string;
-  material_id: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-const STORAGE_KEY = "learnai_diagram_history";
+import { diagramApi, Diagram } from "@/lib/api";
 
 export function useDiagramHistory() {
   const { user } = useAuth();
@@ -32,8 +20,7 @@ export function useDiagramHistory() {
 
     setIsLoading(true);
     try {
-      const stored = localStorage.getItem(`${STORAGE_KEY}_${user.id}`);
-      const data = stored ? JSON.parse(stored) : [];
+      const data = await diagramApi.getDiagrams();
       setDiagrams(data);
     } catch (error) {
       console.error("Error loading diagrams:", error);
@@ -43,15 +30,6 @@ export function useDiagramHistory() {
     }
   }, [user]);
 
-  const saveDiagramsLocal = useCallback(
-    (newDiagrams: Diagram[]) => {
-      if (!user) return;
-      localStorage.setItem(`${STORAGE_KEY}_${user.id}`, JSON.stringify(newDiagrams));
-      setDiagrams(newDiagrams);
-    },
-    [user]
-  );
-
   const saveDiagram = useCallback(
     async (
       mermaidCode: string,
@@ -60,44 +38,26 @@ export function useDiagramHistory() {
       sourceText?: string,
       materialId?: string
     ) => {
-      if (!user || !mermaidCode) return null;
-
-      try {
-        const now = new Date().toISOString();
-        const newDiagram: Diagram = {
-          id: `diagram-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          title: title || null,
-          source_text: sourceText || null,
-          diagram_type: diagramType,
-          mermaid_code: mermaidCode,
-          material_id: materialId || null,
-          created_at: now,
-          updated_at: now,
-        };
-
-        const newDiagrams = [newDiagram, ...diagrams];
-        saveDiagramsLocal(newDiagrams);
-        return newDiagram.id;
-      } catch (error) {
-        console.error("Error saving diagram:", error);
-        return null;
-      }
+      // Similar to summaries, manual creation is not yet fully supported by backend
+      // without re-generation. We will rely on diagramApi.generate for now in the component.
+      return null;
     },
-    [user, diagrams, saveDiagramsLocal]
+    [user]
   );
 
   const deleteDiagram = useCallback(
     async (diagramId: string) => {
       try {
-        const newDiagrams = diagrams.filter((d) => d.id !== diagramId);
-        saveDiagramsLocal(newDiagrams);
+        await diagramApi.deleteDiagram(diagramId);
+        setDiagrams(prev => prev.filter(d => d.id !== diagramId));
         return true;
       } catch (error) {
         console.error("Error deleting diagram:", error);
+        await loadDiagrams();
         return false;
       }
     },
-    [diagrams, saveDiagramsLocal]
+    [loadDiagrams]
   );
 
   const getDiagram = useCallback(

@@ -59,7 +59,7 @@ async def get_system_stats(
     
     yesterday = datetime.utcnow() - timedelta(days=1)
     active_users = db.query(UserSession.user_id).filter(
-        UserSession.updated_at >= yesterday
+        UserSession.started_at >= yesterday
     ).distinct().count() or 0
     
     # Activity stats
@@ -215,3 +215,97 @@ async def export_report(
     response.headers["Content-Disposition"] = "attachment; filename=user_activity_report.csv"
     
     return response
+
+
+# =============================================================================
+# Analytics Routes
+# =============================================================================
+
+@router.get("/stats/trends")
+async def get_activity_trends(
+    days: int = 7,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Get activity trends for the last N days.
+    Returns daily counts of quizzes, flashcards, and interactions.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"Fetching activity trends for last {days} days")
+    
+    trends = []
+    end_date = datetime.utcnow()
+    
+    for i in range(days):
+        # Calculate start and end of the day (going backwards)
+        current_day = end_date - timedelta(days=days - 1 - i)
+        day_start = current_day.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end = current_day.replace(hour=23, minute=59, second=59, microsecond=999999)
+        
+        # Count quizzes
+        quizzes = db.query(QuizAttempt).filter(
+            QuizAttempt.started_at >= day_start,
+            QuizAttempt.started_at <= day_end
+        ).count()
+        
+        # Count flashcards
+        flashcards = db.query(FlashcardSet).filter(
+            FlashcardSet.created_at >= day_start,
+            FlashcardSet.created_at <= day_end
+        ).count()
+        
+        # Count interactions (chat, etc.)
+        interactions = db.query(Interaction).filter(
+            Interaction.created_at >= day_start,
+            Interaction.created_at <= day_end
+        ).count()
+        
+        trends.append({
+            "name": current_day.strftime("%a"), # Mon, Tue, etc.
+            "date": current_day.strftime("%Y-%m-%d"),
+            "quizzes": quizzes,
+            "flashcards": flashcards,
+            "interactions": interactions
+        })
+        
+    return trends
+
+
+@router.get("/stats/roles")
+async def get_role_distribution(
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Get distribution of users by role.
+    """
+    from sqlalchemy import func
+    
+    # Query count by role
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info("Fetching role distribution")
+    
+    results = db.query(User.role, func.count(User.id)).group_by(User.role).all()
+    logger.info(f"Role distribution results: {results}")
+    
+    # Format for frontend
+    distribution = []
+    colors = {
+        "student": "#0088FE",
+        "parent": "#00C49F",
+        "admin": "#FFBB28",
+        "teacher": "#FF8042"
+    }
+    
+    for role, count in results:
+        role_name = role or "student" # Default to student if None
+        distribution.append({
+            "name": role_name.capitalize() + "s",
+            "value": count,
+            "color": colors.get(role_name, "#8884d8")
+        })
+        
+    return distribution

@@ -34,6 +34,8 @@ async def generate_chat_response(
     This is a helper function used by the WebSocket endpoint in voice_routes_v2.
     It uses either OpenAI API or Phi-3 for response generation.
     """
+    from starlette.concurrency import run_in_threadpool
+    
     # Build context string
     subjects_text = ""
     if subjects:
@@ -57,41 +59,30 @@ VOICE CONVERSATION RULES:
 
 Remember: You're SPEAKING, not writing an essay!"""
 
-    # Try OpenAI first (for better conversational quality)
-    openai_api_key = os.getenv("OPENAI_API_KEY")
-    
-    if openai_api_key:
-        try:
-            import openai
-            
-            client = openai.OpenAI(api_key=openai_api_key)
-            
-            messages = [{"role": "system", "content": system_prompt}]
-            
-            # Add conversation history if available
-            if conversation_history:
-                for msg in conversation_history[-6:]:  # Last 6 messages for context
-                    messages.append({
-                        "role": msg.get("role", "user"),
-                        "content": msg.get("content", "")
-                    })
-            else:
-                messages.append({"role": "user", "content": message})
-            
-            response = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=messages,
-                max_tokens=150,  # Keep responses short for voice
-                temperature=0.7,
-            )
-            
-            return response.choices[0].message.content.strip()
-            
-        except Exception as e:
-            logger.warning(f"OpenAI failed, falling back to Phi-3: {e}")
-    
-    # Fallback to Phi-3 local model
-    try:
+    def _call_openai():
+        import openai
+        client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        
+        messages = [{"role": "system", "content": system_prompt}]
+        
+        if conversation_history:
+            for msg in conversation_history[-6:]:
+                messages.append({
+                    "role": msg.get("role", "user"),
+                    "content": msg.get("content", "")
+                })
+        else:
+            messages.append({"role": "user", "content": message})
+        
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=messages,
+            max_tokens=150,
+            temperature=0.7,
+        )
+        return response.choices[0].message.content.strip()
+
+    def _call_phi3():
         from ml_models import generate_tutor_response
         
         instruction = f"{system_prompt}\n\nPrevious context: {str(conversation_history[-3:]) if conversation_history else 'None'}"
@@ -101,16 +92,25 @@ Remember: You're SPEAKING, not writing an essay!"""
             question=message
         )
         
-        # Truncate long responses for voice
         if len(response) > 300:
             sentences = response.split('. ')
             response = '. '.join(sentences[:2]) + '.'
         
         return response
+
+    # Try OpenAI first
+    if os.getenv("OPENAI_API_KEY"):
+        try:
+            return await run_in_threadpool(_call_openai)
+        except Exception as e:
+            logger.warning(f"OpenAI failed, falling back to Phi-3: {e}")
+    
+    # Fallback to Phi-3
+    try:
+        return await run_in_threadpool(_call_phi3)
         
     except Exception as e:
         logger.error(f"Phi-3 failed: {e}")
-        # Final fallback
         return "I'm here to help! Could you tell me more about what you're working on?"
 
 

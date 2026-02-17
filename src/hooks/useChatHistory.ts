@@ -50,7 +50,7 @@ export function useChatHistory() {
 
   const loadSessions = useCallback(async () => {
     if (!user) return;
-    
+
     setIsLoading(true);
     try {
       const data = await chatApi.getSessions();
@@ -84,7 +84,7 @@ export function useChatHistory() {
 
   const saveSession = useCallback(
     async (messages: Message[], topic?: string) => {
-      if (!user || messages.length === 0) return null;
+      if (!user) return null;
 
       try {
         if (currentSessionId) {
@@ -96,12 +96,12 @@ export function useChatHistory() {
         } else {
           // Create new session
           const session = await chatApi.createSession(topic);
-          
+
           // Add messages
           for (const m of messages) {
             await chatApi.addMessage(session.id, m.role, m.content);
           }
-          
+
           setCurrentSessionId(session.id);
           persistSessionId(session.id);
           await loadSessions();
@@ -114,6 +114,21 @@ export function useChatHistory() {
     },
     [user, currentSessionId, loadSessions]
   );
+
+  const addMessageToSession = useCallback(
+    async (sessionId: string, role: "user" | "assistant", content: string) => {
+      if (!user) return null;
+      try {
+        await chatApi.addMessage(sessionId, role, content);
+        return true;
+      } catch (error) {
+        console.error("Error adding message:", error);
+        return false;
+      }
+    },
+    [user]
+  );
+
 
   const loadSession = useCallback(
     (sessionId: string): Message[] | null => {
@@ -162,5 +177,6 @@ export function useChatHistory() {
     deleteSession,
     startNewSession,
     loadSessions,
+    addMessageToSession,
   };
 }

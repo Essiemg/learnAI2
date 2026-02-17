@@ -62,6 +62,7 @@ export default function Quizzes() {
   const {
     sessions,
     saveSession,
+    saveProgress,
     loadSession,
     deleteSession,
   } = useQuizHistory();
@@ -133,6 +134,12 @@ export default function Quizzes() {
         answers: newAnswers,
       });
       setSelectedAnswer(null);
+
+      // Auto-save progress
+      if (user && quiz.sessionId) {
+        saveProgress(quiz.sessionId, quiz.questions, newAnswers);
+      }
+
     } else {
       let score = 0;
       quiz.questions.forEach((q) => {
@@ -154,7 +161,8 @@ export default function Quizzes() {
           quiz.questions,
           newAnswers,
           scorePercent,
-          true
+          true,
+          quiz.sessionId // Pass the existing session ID
         );
       }
 
@@ -344,7 +352,7 @@ export default function Quizzes() {
             <h3 className="text-xl font-medium">{currentQuestion.question}</h3>
 
             <RadioGroup
-              value={selectedAnswer?.toString()}
+              value={selectedAnswer?.toString() ?? ""}
               onValueChange={(val) => handleAnswer(parseInt(val))}
               className="space-y-3"
             >
@@ -391,10 +399,10 @@ export default function Quizzes() {
               {quiz.score === quiz.questions.length
                 ? "Perfect score!"
                 : quiz.score >= quiz.questions.length * 0.8
-                ? "Great job!"
-                : quiz.score >= quiz.questions.length * 0.6
-                ? "Good effort! Keep practicing."
-                : "Keep studying, you'll improve!"}
+                  ? "Great job!"
+                  : quiz.score >= quiz.questions.length * 0.6
+                    ? "Good effort! Keep practicing."
+                    : "Keep studying, you'll improve!"}
             </p>
             <Button onClick={handleReset} className="mt-6">
               Try Another Quiz

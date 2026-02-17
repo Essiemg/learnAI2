@@ -15,7 +15,7 @@ router = APIRouter(prefix="/tutor", tags=["Tutoring"])
 
 
 @router.post("", response_model=TutorResponse)
-async def tutor(
+def tutor(
     request: TutorRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -66,10 +66,11 @@ IMPORTANT RULES:
 - Be encouraging and supportive
 - Apply the {strategy} teaching strategy"""
     
-    # Generate response using Phi-3
+    # Generate response using Phi-3 / Gemini
     answer = generate_tutor_response(
         instruction=instruction,
-        question=request.question
+        question=request.question,
+        attachments=request.attachments
     )
     
     # Log interaction to database
@@ -82,9 +83,11 @@ IMPORTANT RULES:
         time_spent=request.time_spent,
         frustration=request.frustration,
         recent_accuracy=request.recent_accuracy,
+        hints_used=request.hints_used,
         strategy=strategy,
         created_at=datetime.utcnow()
     )
+
     
     db.add(interaction)
     db.commit()
@@ -93,7 +96,7 @@ IMPORTANT RULES:
 
 
 @router.post("/chat")
-async def tutor_chat(
+def tutor_chat(
     request: TutorRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -102,7 +105,7 @@ async def tutor_chat(
     Alternative chat endpoint that returns a streaming-style response.
     For compatibility with existing frontend chat components.
     """
-    response = await tutor(request, current_user, db)
+    response = tutor(request, current_user, db)
     
     return {
         "message": {
@@ -114,7 +117,7 @@ async def tutor_chat(
 
 
 @router.post("/stream")
-async def tutor_stream(
+def tutor_stream(
     request: TutorRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -147,7 +150,7 @@ IMPORTANT RULES:
 - Keep explanations appropriate for Grade {grade}
 - Be encouraging and supportive"""
     
-    async def generate_stream():
+    def generate_stream():
         full_response = ""
         
         # Send strategy first
@@ -162,20 +165,29 @@ IMPORTANT RULES:
         yield f"data: {json.dumps({'type': 'done', 'content': full_response})}\n\n"
         
         # Log interaction after completion
-        interaction = Interaction(
-            user_id=current_user.id,
-            subject=request.subject,
-            question=request.question,
-            answer=full_response,
-            mistakes=request.mistakes,
-            time_spent=request.time_spent,
-            frustration=request.frustration,
-            recent_accuracy=request.recent_accuracy,
-            strategy=strategy,
-            created_at=datetime.utcnow()
-        )
-        db.add(interaction)
-        db.commit()
+        # Note: In a real app, verify if we can safely use the session here 
+        # since it might be closed. But for sync generator inside sync endpoint, 
+        # it usually works if we don't commit until now.
+        try:
+            interaction = Interaction(
+                user_id=current_user.id,
+                subject=request.subject,
+                question=request.question,
+                answer=full_response,
+                mistakes=request.mistakes,
+                time_spent=request.time_spent,
+                frustration=request.frustration,
+                recent_accuracy=request.recent_accuracy,
+                hints_used=request.hints_used,
+                strategy=strategy,
+                created_at=datetime.utcnow()
+            )
+
+            db.add(interaction)
+            db.commit()
+        except Exception as e:
+            # Logging error if db session is invalid
+            print(f"Failed to log interaction: {e}")
     
     return StreamingResponse(
         generate_stream(),

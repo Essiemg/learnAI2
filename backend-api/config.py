@@ -85,16 +85,20 @@ class Settings(BaseSettings):
     # Google Gemini API key for AI responses
     GEMINI_API_KEY: str = ""
     
+
+
+    
     # -------------------------------------------------------------------------
     # ML Model Paths
     # -------------------------------------------------------------------------
+
     # Path to the trained policy model for teaching strategy selection
     POLICY_MODEL_PATH: str = "./models/policy_model.joblib"
     
     # Paths to Phi-3 model files
     # The base model will be downloaded from Hugging Face
     PHI3_MODEL_PATH: str = "microsoft/Phi-3-mini-4k-instruct"
-    PHI3_LORA_PATH: str = "./models/phi3-tutor-lora"
+    PHI3_LORA_PATH: str = ""
     
     # -------------------------------------------------------------------------
     # Application Settings

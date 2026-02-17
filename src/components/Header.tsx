@@ -1,4 +1,4 @@
-import { RotateCcw, User, LogIn } from "lucide-react";
+import { RotateCcw, User, LogIn, Plus } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { VoiceToggle } from "./VoiceToggle";
 import { GradeSelector } from "./GradeSelector";
@@ -29,9 +29,9 @@ export function Header({ onNewChat, hasMessages }: HeaderProps) {
       {/* Logo */}
       <Link to="/" className="flex items-center gap-2">
         <div className="h-10 w-10 rounded-lg overflow-hidden bg-gradient-to-br from-primary/20 to-accent/20 p-0.5">
-          <img 
-            src="/owl - illustrationImage.png" 
-            alt="Toki Logo" 
+          <img
+            src="/owl - illustrationImage.png"
+            alt="Toki Logo"
             className="h-full w-full object-cover rounded-md"
           />
         </div>
@@ -43,7 +43,7 @@ export function Header({ onNewChat, hasMessages }: HeaderProps) {
       {/* Controls */}
       <div className="flex items-center gap-2">
         {role === "child" && <GradeSelector />}
-        
+
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -52,12 +52,12 @@ export function Header({ onNewChat, hasMessages }: HeaderProps) {
               className="rounded-full"
               onClick={onNewChat}
             >
-              <RotateCcw className="h-5 w-5" />
+              <Plus className="h-5 w-5" />
             </Button>
           </TooltipTrigger>
           <TooltipContent>Start new chat</TooltipContent>
         </Tooltip>
-        
+
         <VoiceToggle />
         <ThemeToggle />
 

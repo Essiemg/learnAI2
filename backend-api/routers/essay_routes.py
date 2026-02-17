@@ -3,16 +3,17 @@ Essay grading and management routes
 """
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import desc
 from pydantic import BaseModel
 from typing import Optional, List
-from uuid import uuid4
 from datetime import datetime
 import json
 
 from db import get_db
 from auth import get_current_user
-from models import User
+from models import User, StudyEvent, Essay
 from ml_models import generate_essay_feedback
+
 
 router = APIRouter(prefix="/essays", tags=["essays"])
 
@@ -48,7 +49,7 @@ class GradeRequest(BaseModel):
 
 
 # In-memory storage for essays (replace with DB table if needed)
-_essay_storage: dict = {}
+# _essay_storage: dict = {}
 
 
 @router.get("", response_model=List[EssaySubmission])
@@ -57,8 +58,26 @@ async def get_essays(
     db: Session = Depends(get_db)
 ):
     """Get all essay submissions for the current user"""
-    user_essays = _essay_storage.get(str(current_user.id), [])
-    return user_essays
+    essays = (
+        db.query(Essay)
+        .filter(Essay.user_id == current_user.id)
+        .order_by(desc(Essay.created_at))
+        .all()
+    )
+    
+    return [
+        EssaySubmission(
+            id=str(e.id),
+            title=e.title,
+            content=e.content,
+            topic=e.topic,
+            feedback=EssayFeedback(**e.feedback) if e.feedback else EssayFeedback(
+                overallScore=0, categories=[], strengths=[], improvements=[], detailedFeedback=""
+            ),
+            created_at=e.created_at.isoformat()
+        )
+        for e in essays
+    ]
 
 
 @router.post("/grade", response_model=EssaySubmission)
@@ -81,47 +100,99 @@ async def grade_essay(
         topic=request.topic
     )
     
-    essay_id = str(uuid4())
-    submission = EssaySubmission(
-        id=essay_id,
+    # Create new Essay record
+    new_essay = Essay(
+        user_id=current_user.id,
         title=request.title,
         content=request.content,
         topic=request.topic,
-        feedback=EssayFeedback(**feedback_data),
-        created_at=datetime.utcnow().isoformat()
+        feedback=feedback_data,
+        score=float(feedback_data.get("overallScore", 0))
     )
     
-    # Store essay
-    user_id = str(current_user.id)
-    if user_id not in _essay_storage:
-        _essay_storage[user_id] = []
-    _essay_storage[user_id].insert(0, submission.model_dump())
+    db.add(new_essay)
+    db.commit()
+    db.refresh(new_essay)
     
-    return submission
+    essay_id = str(new_essay.id)
+    
+    # NEW: Persist as Study Event for Analytics
+    try:
+        study_event = StudyEvent(
+            user_id=current_user.id,
+            event_type="essay",
+            subject="General", # Could be inferred?
+            topic=request.topic or request.title,
+            score=new_essay.score,
+            duration_seconds=0, # We don't track writing time yet
+            event_data={
+                "essay_id": essay_id,
+                "title": request.title,
+                "feedback": feedback_data
+            }
+        )
+        db.add(study_event)
+        db.commit()
+    except Exception as e:
+        print(f"Failed to log essay study event: {e}")
+        # Don't fail the request if logging fails
+
+    
+    return EssaySubmission(
+        id=essay_id,
+        title=new_essay.title,
+        content=new_essay.content,
+        topic=new_essay.topic,
+        feedback=EssayFeedback(**feedback_data),
+        created_at=new_essay.created_at.isoformat()
+    )
 
 
 @router.get("/{essay_id}", response_model=EssaySubmission)
 async def get_essay(
     essay_id: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """Get a specific essay submission"""
-    user_essays = _essay_storage.get(str(current_user.id), [])
-    for essay in user_essays:
-        if essay["id"] == essay_id:
-            return essay
-    raise HTTPException(status_code=404, detail="Essay not found")
+    essay = (
+        db.query(Essay)
+        .filter(Essay.id == essay_id, Essay.user_id == current_user.id)
+        .first()
+    )
+    
+    if not essay:
+        raise HTTPException(status_code=404, detail="Essay not found")
+    
+    return EssaySubmission(
+        id=str(essay.id),
+        title=essay.title,
+        content=essay.content,
+        topic=essay.topic,
+        feedback=EssayFeedback(**essay.feedback) if essay.feedback else EssayFeedback(
+            overallScore=0, categories=[], strengths=[], improvements=[], detailedFeedback=""
+        ),
+        created_at=essay.created_at.isoformat()
+    )
 
 
 @router.delete("/{essay_id}")
 async def delete_essay(
     essay_id: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """Delete an essay submission"""
-    user_id = str(current_user.id)
-    if user_id in _essay_storage:
-        _essay_storage[user_id] = [
-            e for e in _essay_storage[user_id] if e["id"] != essay_id
-        ]
+    essay = (
+        db.query(Essay)
+        .filter(Essay.id == essay_id, Essay.user_id == current_user.id)
+        .first()
+    )
+    
+    if not essay:
+        raise HTTPException(status_code=404, detail="Essay not found")
+    
+    db.delete(essay)
+    db.commit()
+    
     return {"status": "deleted"}

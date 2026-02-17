@@ -7,7 +7,7 @@ from sqlalchemy import desc
 
 from db import get_db
 from db import get_db
-from models import User, FlashcardSession, StudyEvent
+from models import User, FlashcardSession, StudyEvent, FlashcardSet
 from schemas import FlashcardGenerateRequest, FlashcardSessionResponse
 from auth import get_current_user
 from ml_models import generate_flashcards
@@ -44,7 +44,8 @@ async def generate_flashcard_session(
         topic=request.topic,
         num_cards=request.num_cards,
         grade=current_user.grade,
-        material_content=request.material_content
+        material_content=request.material_content,
+        attachments=request.attachments
     )
     
     # Create flashcard session
@@ -59,6 +60,33 @@ async def generate_flashcard_session(
     db.add(session)
     db.commit()
     db.refresh(session)
+    
+    # NEW: Create persistent FlashcardSet immediately for Library
+    try:
+        fc_set = FlashcardSet(
+            user_id=current_user.id,
+            title=f"Flashcards: {request.topic}",
+            description=f"AI generated flashcards for {request.topic}",
+            subject=request.topic,
+            topic=request.topic,
+            card_count=len(cards)
+        )
+        db.add(fc_set)
+        db.flush()
+        
+        from models import Flashcard
+        for i, card in enumerate(cards):
+            new_card = Flashcard(
+                set_id=fc_set.id,
+                front=card.get("front", ""),
+                back=card.get("back", ""),
+                position=i
+            )
+            db.add(new_card)
+        db.commit()
+    except Exception as e:
+        print(f"Error creating FlashcardSet persistence: {e}")
+
     
     # Log study event
     event = StudyEvent(

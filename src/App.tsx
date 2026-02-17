@@ -11,6 +11,7 @@ import { EducationProvider } from "@/contexts/EducationContext";
 import { MainLayout } from "@/components/MainLayout";
 import Homepage from "./pages/Homepage";
 import Dashboard from "./pages/Dashboard";
+import Library from "./pages/Library";
 import AITutor from "./pages/AITutor";
 import Flashcards from "./pages/Flashcards";
 import Quizzes from "./pages/Quizzes";
@@ -59,6 +60,7 @@ const App = () => (
                         <Routes>
                           <Route path="/" element={<Homepage />} />
                           <Route path="/dashboard" element={<Dashboard />} />
+                          <Route path="/library" element={<Library />} />
                           <Route path="/tutor" element={<AITutor />} />
                           <Route path="/flashcards" element={<Flashcards />} />
                           <Route path="/quizzes" element={<Quizzes />} />

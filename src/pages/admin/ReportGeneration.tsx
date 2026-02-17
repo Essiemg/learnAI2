@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { adminApi } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
     Select,
@@ -25,7 +26,7 @@ export default function ReportGeneration() {
     const [reportType, setReportType] = useState<string>("");
     const [isGenerating, setIsGenerating] = useState(false);
 
-    const handleGenerate = () => {
+    const handleGenerate = async () => {
         if (!reportType) {
             toast.error("Please select a report type");
             return;
@@ -33,11 +34,15 @@ export default function ReportGeneration() {
 
         setIsGenerating(true);
 
-        // Simulate generation delay
-        setTimeout(() => {
+        try {
+            await adminApi.exportReport();
+            toast.success("Report generated and downloaded successfully!");
+        } catch (error) {
+            toast.error("Failed to generate report");
+            console.error(error);
+        } finally {
             setIsGenerating(false);
-            toast.success("Report generated successfully!");
-        }, 2000);
+        }
     };
 
     return (

@@ -231,6 +231,10 @@ export interface TutorRequest {
   time_spent?: number;
   frustration?: number;
   recent_accuracy?: number;
+  attachments?: {
+    type: string;
+    content: string; // Base64
+  }[];
 }
 
 export interface TutorResponse {
@@ -252,6 +256,7 @@ export const tutorApi = {
         time_spent: data.time_spent || 0,
         frustration: data.frustration || 0,
         recent_accuracy: data.recent_accuracy || 0,
+        attachments: data.attachments || [],
       }),
     });
   },
@@ -482,6 +487,16 @@ export const quizApi = {
   },
 
   /**
+   * Update quiz progress (answers)
+   */
+  async updateProgress(id: string, answers: number[]): Promise<QuizSession> {
+    return apiFetch<QuizSession>(`/quizzes/${id}/progress`, {
+      method: 'PUT',
+      body: JSON.stringify({ answers }),
+    });
+  },
+
+  /**
    * Submit quiz answers
    */
   async submit(id: string, answers: number[]): Promise<QuizSession> {
@@ -529,10 +544,15 @@ export const flashcardApi = {
   /**
    * Generate new flashcards
    */
-  async generate(topic: string, numCards = 10): Promise<FlashcardSession> {
+  async generate(topic: string, numCards = 10, materialContent?: string, attachments?: Attachment[]): Promise<FlashcardSession> {
     return apiFetch<FlashcardSession>('/flashcards/generate', {
       method: 'POST',
-      body: JSON.stringify({ topic, num_cards: numCards }),
+      body: JSON.stringify({
+        topic,
+        num_cards: numCards,
+        material_content: materialContent,
+        attachments: attachments || []
+      }),
     });
   },
 
@@ -652,6 +672,11 @@ export interface Summary {
   created_at: string;
 }
 
+export interface Attachment {
+  type: string;
+  content: string;
+}
+
 export const summaryApi = {
   /**
    * Get all summaries
@@ -663,10 +688,10 @@ export const summaryApi = {
   /**
    * Generate a summary
    */
-  async generate(content: string, isBase64 = false): Promise<Summary> {
+  async generate(content: string, isBase64 = false, attachments?: Attachment[]): Promise<Summary> {
     return apiFetch<Summary>('/summaries/generate', {
       method: 'POST',
-      body: JSON.stringify({ content, is_base64: isBase64 }),
+      body: JSON.stringify({ content, is_base64: isBase64, attachments: attachments || [] }),
     });
   },
 
@@ -794,6 +819,20 @@ export const adminApi = {
    */
   async getActivityLog(limit = 50): Promise<ActivityLog[]> {
     return apiFetch<ActivityLog[]>(`/admin/activity?limit=${limit}`);
+  },
+
+  /**
+   * Get activity trends
+   */
+  async getTrends(): Promise<{ name: string; quizzes: number; flashcards: number; interactions: number }[]> {
+    return apiFetch<{ name: string; quizzes: number; flashcards: number; interactions: number }[]>('/admin/stats/trends');
+  },
+
+  /**
+   * Get user role distribution
+   */
+  async getRoleDistribution(): Promise<{ name: string; value: number; color: string }[]> {
+    return apiFetch<{ name: string; value: number; color: string }[]>('/admin/stats/roles');
   },
 
   /**

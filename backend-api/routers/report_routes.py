@@ -10,17 +10,12 @@ import os
 from db import get_db
 from models import (
     User, Interaction, QuizAttempt, QuizAnswer, 
-    FlashcardSet, Summary, Diagram, StudyEvent
+    FlashcardSet, FlashcardSession, Summary, Diagram, StudyEvent,
+    UserTopicState, LearningPattern, Essay
 )
-from auth import get_current_user
 
-# Try to import Gemini, fallback if not available
-try:
-    import google.generativeai as genai
-    GEMINI_AVAILABLE = True
-    genai.configure(api_key=os.getenv("GEMINI_API_KEY", ""))
-except ImportError:
-    GEMINI_AVAILABLE = False
+from auth import get_current_user
+from ml_models import generate_report_feedback
 
 router = APIRouter(prefix="/reports", tags=["Reports"])
 
@@ -43,6 +38,7 @@ class ProgressReport(BaseModel):
     total_flashcards: int
     total_summaries: int
     total_diagrams: int
+    total_essays: int
     topics_studied: List[str]
     strengths: List[str]
     areas_for_improvement: List[str]
@@ -91,37 +87,21 @@ def calculate_study_streak(study_events: List, quiz_attempts: List) -> int:
 
 
 async def generate_ai_feedback(
-    total_quizzes: int,
-    average_score: float,
-    topics: List[str],
-    recent_scores: List[float],
-    study_streak: int,
-    weak_topics: List[str] = []
+    student_profile: dict
 ) -> str:
-    """Generate personalized AI feedback using Gemini."""
-    if not GEMINI_AVAILABLE or not os.getenv("GEMINI_API_KEY"):
-        # Fallback feedback if Gemini is not available
-        return generate_fallback_feedback(average_score, total_quizzes, study_streak)
-    
+    """Generate personalized AI feedback using local model."""
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        
-        prompt = f"""You are Toki, an encouraging AI tutor. Generate a brief, personalized feedback message (2-3 sentences) for a student with these stats:
+        return generate_report_feedback(student_profile)
 
-- Total quizzes completed: {total_quizzes}
-- Average score: {average_score:.1f}%
-- Topics studied: {', '.join(topics[:5]) if topics else 'None yet'}
-- Recent scores: {recent_scores[:5] if recent_scores else 'No recent quizzes'}
-- Current study streak: {study_streak} days
-- Weak Areas (need focus): {', '.join(weak_topics) if weak_topics else 'None identified yet'}
-
-Be encouraging but constructive. If there are weak areas, suggest specific study strategies for them. Keep it concise. Use emoji sparingly (1-2 max)."""
-
-        response = await model.generate_content_async(prompt)
-        return response.text.strip()
     except Exception as e:
-        print(f"Gemini API error: {e}")
-        return generate_fallback_feedback(average_score, total_quizzes, study_streak)
+        print(f"Feedback generation error: {e}")
+        # Fallback using basic stats from profile
+        return generate_fallback_feedback(
+            student_profile.get("average_score", 0),
+            student_profile.get("total_quizzes", 0),
+            student_profile.get("study_streak", 0)
+        )
+
 
 
 def generate_fallback_feedback(average_score: float, total_quizzes: int, study_streak: int) -> str:
@@ -135,6 +115,44 @@ def generate_fallback_feedback(average_score: float, total_quizzes: int, study_s
         return f"Good progress! You're on the right track with a {average_score:.0f}% average. Focus on reviewing topics where you scored lower to boost your understanding."
     else:
         return f"Keep practicing! Every quiz helps you learn. Try reviewing the material before retaking quizzes, and don't hesitate to ask me questions!"
+
+
+def generate_mock_progress_report() -> ProgressReport:
+    """Generate a realistic mock progress report for demonstration/new users."""
+    return ProgressReport(
+        total_quizzes=8,
+        average_score=85.5,
+        total_flashcards=25,
+        total_summaries=5,
+        total_diagrams=2,
+        total_essays=3,
+        topics_studied=["Introduction to AI", "Photosynthesis", "World War II", "Algebra Basics"],
+        strengths=[
+            "✅ Strong performance: scored 80%+ on 6 quiz(es)",
+            "✅ Consistent learner with solid understanding",
+            "✅ Active engagement with practice quizzes"
+        ],
+        areas_for_improvement=[
+            "📚 Review needed: 1 quiz(es) scored below 60%",
+            "📖 Consider reviewing material before quizzes"
+        ],
+        ai_feedback=(
+            "Based on your recent activity, you're showing great promise! "
+            "Your mastery of 'Introduction to AI' is impressive with a 92% average. "
+            "However, I noticed some struggle with 'Algebra Basics'. "
+            "Try using the Flashcards feature to reinforce those concepts. "
+            "Keep up the 5-day streak, consistency is key!"
+        ),
+        recommendations=[
+            "🚀 Challenge yourself with more advanced Algebra topics",
+            "📝 Try creating summaries for 'World War II' to deepen understanding",
+            "🔥 You're on a 5-day streak! Keep it going!",
+            "💡 Use the AI Tutor to ask questions about 'Algebra Basics'"
+        ],
+        study_streak=5,
+        total_study_time=125,
+        generated_at=datetime.now().isoformat()
+    )
 
 
 def generate_recommendations(
@@ -237,9 +255,10 @@ async def generate_progress_report(
     )
     
     # Fetch flashcard sets
-    flashcard_sets = (
-        db.query(FlashcardSet)
-        .filter(FlashcardSet.user_id == user_id)
+    # Fetch flashcard sessions (using legacy model as per flashcard_routes)
+    flashcard_sessions = (
+        db.query(FlashcardSession)
+        .filter(FlashcardSession.user_id == user_id)
         .all()
     )
     
@@ -256,11 +275,19 @@ async def generate_progress_report(
         .filter(Diagram.user_id == user_id)
         .all()
     )
+
+    # Fetch essays
+    essays = (
+        db.query(Essay)
+        .filter(Essay.user_id == user_id)
+        .all()
+    )
     
     # Fetch study events
     study_events = (
         db.query(StudyEvent)
         .filter(StudyEvent.user_id == user_id)
+        .order_by(desc(StudyEvent.created_at))
         .order_by(desc(StudyEvent.created_at))
         .all()
     )
@@ -268,12 +295,13 @@ async def generate_progress_report(
     # Calculate statistics
     total_quizzes = len(quiz_attempts)
     
+    # CHECK FOR EMPTY DATA - RETURN MOCK REPORT
+    # if total_quizzes == 0 and len(study_events) == 0:
+    #     return generate_mock_progress_report()
+    
     # Calculate average score
     scores = [a.score for a in quiz_attempts if hasattr(a, 'score') and a.score is not None]
     average_score = sum(scores) / len(scores) if scores else 0.0
-    
-    # Get recent scores for AI feedback
-    recent_scores = scores[:10] if scores else []
     
     # Extract topics
     topics_set = set()
@@ -289,35 +317,70 @@ async def generate_progress_report(
     # Calculate study streak
     study_streak = calculate_study_streak(study_events, quiz_attempts)
     
-    # Calculate total study time (estimate from quiz attempts and study events)
+    # Calculate total study time (estimate)
     total_study_time = 0
     for event in study_events:
         if hasattr(event, 'duration') and event.duration:
             total_study_time += event.duration
-    # Add estimated time per quiz (5 mins average)
     total_study_time += total_quizzes * 5
     
     # Analyze strengths and weaknesses
     strengths, weaknesses = analyze_strengths_weaknesses(quiz_attempts, average_score)
     
-    # Find weak topics
+    # Find weak topics for recommendations
     weak_topics = []
+
     for attempt in quiz_attempts:
         if hasattr(attempt, 'score') and attempt.score and attempt.score < 60:
             if hasattr(attempt, 'quiz_set') and attempt.quiz_set:
                 if hasattr(attempt.quiz_set, 'topic') and attempt.quiz_set.topic:
                     weak_topics.append(attempt.quiz_set.topic)
     weak_topics = list(set(weak_topics))[:3]
+
     
+    # -------------------------------------------------------------------------
+    # ADVANCED METRICS AGGREGATION
+    # -------------------------------------------------------------------------
+    
+    # 1. Essay Performance
+    essay_events = [e for e in study_events if e.event_type == "essay"]
+    essay_scores = [e.score for e in essay_events if e.score is not None]
+    avg_essay_score = sum(essay_scores) / len(essay_scores) if essay_scores else 0.0
+    
+    # 2. Topic Mastery (from UserTopicState)
+    topic_states = db.query(UserTopicState).filter(UserTopicState.user_id == user_id).all()
+    mastered_topics = [t.topic for t in topic_states if t.mastery_level >= 80]
+    struggling_topics = [t.topic for t in topic_states if t.mastery_level < 50]
+    
+    # 3. Learning Patterns
+    patterns = db.query(LearningPattern).filter(LearningPattern.user_id == user_id).all()
+    detected_patterns = [p.pattern_type for p in patterns]
+    
+    # 4. Engagement / Effort
+    interactions = db.query(Interaction).filter(Interaction.user_id == user_id).all()
+    total_hints = sum([i.hints_used or 0 for i in interactions])
+    
+    # Construct Detailed Student Profile
+    student_profile = {
+        "name": current_user.name,
+        "grade": current_user.grade,
+        "total_quizzes": total_quizzes,
+        "average_quiz_score": average_score,
+        "total_essays": len(essay_events),
+        "average_essay_score": avg_essay_score,
+        "study_streak": study_streak,
+        "topics_studied": list(topics_set),
+        "mastered_topics": mastered_topics,
+        "struggling_topics": struggling_topics,
+        "learning_patterns": detected_patterns,
+        "total_hints_used": total_hints,
+        "recent_quiz_scores": scores[:5] if scores else [],
+        "recent_essay_scores": essay_scores[:3] if essay_scores else []
+    }
+
     # Generate AI feedback
-    ai_feedback = await generate_ai_feedback(
-        total_quizzes=total_quizzes,
-        average_score=average_score,
-        topics=topics_studied,
-        recent_scores=recent_scores,
-        study_streak=study_streak,
-        weak_topics=weak_topics
-    )
+    ai_feedback = await generate_ai_feedback(student_profile)
+
     
     # Generate recommendations
     recommendations = generate_recommendations(
@@ -330,9 +393,10 @@ async def generate_progress_report(
     return ProgressReport(
         total_quizzes=total_quizzes,
         average_score=round(average_score, 1),
-        total_flashcards=len(flashcard_sets),
+        total_flashcards=len(flashcard_sessions),
         total_summaries=len(summaries),
         total_diagrams=len(diagrams),
+        total_essays=len(essays),
         topics_studied=topics_studied,
         strengths=strengths,
         areas_for_improvement=weaknesses,
@@ -357,8 +421,8 @@ async def get_quick_summary(
         QuizAttempt.user_id == user_id
     ).scalar() or 0
     
-    flashcard_count = db.query(func.count(FlashcardSet.id)).filter(
-        FlashcardSet.user_id == user_id
+    flashcard_count = db.query(func.count(FlashcardSession.id)).filter(
+        FlashcardSession.user_id == user_id
     ).scalar() or 0
     
     summary_count = db.query(func.count(Summary.id)).filter(
@@ -368,6 +432,14 @@ async def get_quick_summary(
     diagram_count = db.query(func.count(Diagram.id)).filter(
         Diagram.user_id == user_id
     ).scalar() or 0
+    
+    # -------------------------------------------------------------------------
+    # REAL DATA ONLY
+    # -------------------------------------------------------------------------
+    
+    # Average quiz score
+    
+    # Average quiz score
     
     # Average quiz score
     avg_score = db.query(func.avg(QuizAttempt.score)).filter(

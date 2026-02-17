@@ -7,6 +7,30 @@ import logging
 
 import joblib
 import numpy as np
+import base64
+import io
+try:
+    from PIL import Image
+    import pytesseract
+    
+    # Configure Tesseract path for Windows if provided in env
+    tesseract_path = os.getenv("TESSERACT_PATH")
+    if tesseract_path and os.path.exists(tesseract_path):
+        pytesseract.pytesseract.tesseract_cmd = tesseract_path
+        
+except ImportError:
+    Image = None
+    pytesseract = None
+
+try:
+    import pypdf
+except ImportError:
+    pypdf = None
+
+try:
+    import docx
+except ImportError:
+    docx = None
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +137,9 @@ def clean_response(text: str) -> str:
 _policy_model = None
 _phi3_model = None  # Will be Llama instance for GGUF model
 _phi3_tokenizer = None
+
+
+
 
 # Response cache for common questions (LRU cache)
 from functools import lru_cache
@@ -308,21 +335,164 @@ def load_phi3_model(model_path: str, lora_path: Optional[str] = None):
         return None, None
 
 
+# Gemini imports removed
+
+
+def extract_text_from_attachments(attachments: List[dict]) -> str:
+    """Extract text from attachments using OCR."""
+    if not attachments:
+        return ""
+    
+    extracted = []
+    for i, att in enumerate(attachments):
+        # Handle Pydantic model or dict
+        if hasattr(att, "model_dump"):
+            att = att.model_dump()
+        elif hasattr(att, "dict"):
+             att = att.dict()
+        
+        att_type = att.get("type", "unknown")
+        logger.info(f"Processing attachment {i+1}: type={att_type}")
+        
+        try:
+            if att_type.startswith("image/"):
+                content = att.get("content", "")
+                if "," in content:
+                    content = content.split(",")[1]
+                
+                logger.info(f"Decoding base64 image (len={len(content)})...")
+                image_data = base64.b64decode(content)
+                
+                if Image and pytesseract:
+                    try:
+                        image = Image.open(io.BytesIO(image_data))
+                        logger.info(f"Image opened: {image.format} {image.size}")
+                        text = pytesseract.image_to_string(image)
+                        logger.info(f"OCR Result (first 50 chars): {text[:50].strip()}...")
+                        
+                        if text.strip():
+                            extracted.append(f"[Image Content: {text.strip()}]")
+                        else:
+                            logger.warning("OCR returned empty text.")
+                            extracted.append("[Image attached - No text found]")
+                    except Exception as img_err:
+                         logger.error(f"Tesseract/Image error: {img_err}")
+                         extracted.append(f"[Image processing failed: {img_err}]")
+                else:
+                    logger.warning("Pillow or Pytesseract not available.")
+                    extracted.append("[Image attached - OCR unavailable (libraries missing)]")
+            
+            elif att_type == "application/pdf":
+                logger.info("Processing PDF attachment...")
+                if pypdf:
+                    try:
+                        content = att.get("content", "")
+                        if "," in content:
+                            content = content.split(",")[1]
+                        
+                        pdf_data = base64.b64decode(content)
+                        pdf_file = io.BytesIO(pdf_data)
+                        reader = pypdf.PdfReader(pdf_file)
+                        
+                        text = ""
+                        for page_num, page in enumerate(reader.pages):
+                            page_text = page.extract_text()
+                            if page_text:
+                                text += f"\n[Page {page_num+1}]\n{page_text}"
+                        
+                        if text.strip():
+                            extracted.append(f"[PDF Content: {text[:5000].strip()}... (truncated if too long)]") # Truncate to avoid context overflow
+                            logger.info(f"PDF text extracted ({len(text)} chars)")
+                        else:
+                            extracted.append("[PDF attached - No text found (scanned?)]")
+                            logger.warning("PDF extracted but empty text found.")
+                            
+                    except Exception as pdf_err:
+                        logger.error(f"PDF processing failed: {pdf_err}")
+                        extracted.append(f"[PDF processing failed: {pdf_err}]")
+                else:
+                    logger.warning("pypdf not installed.")
+                    extracted.append("[PDF attached - pypdf library missing]")
+
+            elif att_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+                logger.info("Processing Word document...")
+                if docx:
+                    try:
+                        content = att.get("content", "")
+                        if "," in content:
+                            content = content.split(",")[1]
+                        
+                        doc_data = base64.b64decode(content)
+                        doc_file = io.BytesIO(doc_data)
+                        doc = docx.Document(doc_file)
+                        
+                        text = ""
+                        for para in doc.paragraphs:
+                            if para.text.strip():
+                                text += para.text + "\n"
+                        
+                        if text.strip():
+                            extracted.append(f"[Word Document Content: {text[:5000].strip()}... (truncated)]")
+                            logger.info(f"Docx text extracted ({len(text)} chars)")
+                        else:
+                            extracted.append("[Word document attached - No text found]")
+                            logger.warning("Docx empty.")
+                            
+                    except Exception as docx_err:
+                        logger.error(f"Docx processing failed: {docx_err}")
+                        extracted.append(f"[Docx processing failed: {docx_err}]")
+                else:
+                    logger.warning("python-docx not installed.")
+                    extracted.append("[Word document attached - python-docx library missing]")
+
+            else:
+                 logger.warning(f"Unsupported attachment type: {att_type}")
+                 extracted.append(f"[Attachment: {att_type} - content type not supported for text extraction]")
+
+        except Exception as e:
+            logger.error(f"OCR failed for attachment {i}: {e}")
+            
+    return "\n\n".join(extracted)
+
+
 def generate_tutor_response(
     instruction: str,
     question: str,
-    max_new_tokens: int = 256  # Reduced from 512 for faster responses
+    attachments: Optional[List[dict]] = None,
+    max_new_tokens: int = 512
 ) -> str:
-    """Generate a tutoring response using Phi-3 with anti-leakage measures."""
+    """
+    Generate a tutoring response.
+    
+    Uses local OCR for attachments and local Phi-3 for generation.
+    """
     global _phi3_model, _phi3_tokenizer
     
-    # Check cache first for speed
-    cache_key = _get_cache_key(instruction, question)
-    cached = _get_cached_response(cache_key)
-    if cached:
-        logger.debug("Cache hit for tutor response")
-        return cached
+    # Check cache first (skip for multimodal as cache key doesn't include image content yet)
+    if not attachments:
+        cache_key = _get_cache_key(instruction, question)
+        cached = _get_cached_response(cache_key)
+        if cached:
+            logger.debug("Cache hit for tutor response")
+            return cached
+
+    # Extract text from any attachments using Local OCR
+    attachment_text = ""
+    if attachments:
+        logger.info("Extracting text from attachments locally...")
+        try:
+             attachment_text = extract_text_from_attachments(attachments)
+             if attachment_text:
+                 attachment_text = f"\n\n[CONTEXT FROM UPLOADED FILES]:\n{attachment_text}\n"
+        except Exception as e:
+            logger.error(f"Error processing attachments: {e}")
+            attachment_text = "\n[Error reading attached files]\n"
+
+    # Construct Prompt with OCR content
+    full_system = f"{ANTI_LEAKAGE_SYSTEM_PROMPT}\n\n{instruction}{attachment_text}"
     
+
+
     if _phi3_model is None:
         return generate_fallback_response(instruction, question)
     
@@ -330,8 +500,9 @@ def generate_tutor_response(
     try:
         from llama_cpp import Llama
         if isinstance(_phi3_model, Llama):
-            response = generate_with_llama_cpp(instruction, question, max_new_tokens)
-            _cache_response(cache_key, response)
+            response = generate_with_llama_cpp(full_system, question, max_new_tokens)
+            if not attachments:
+                _cache_response(cache_key, response)
             return response
     except ImportError:
         pass
@@ -339,13 +510,11 @@ def generate_tutor_response(
     # Using transformers
     if _phi3_tokenizer is None:
         return generate_fallback_response(instruction, question)
+
     
     try:
         import torch
         from transformers import StoppingCriteria, StoppingCriteriaList
-        
-        # Combine anti-leakage system prompt with instruction
-        full_system = f"{ANTI_LEAKAGE_SYSTEM_PROMPT}\n\n{instruction}"
         
         prompt = f"""<|system|>
 {full_system}
@@ -551,9 +720,6 @@ def generate_with_model(prompt: str, max_tokens: int = 1024) -> str:
     """Generate content using the loaded model (GGUF or transformers) with anti-leakage."""
     global _phi3_model, _phi3_tokenizer
     
-    if _phi3_model is None:
-        return ""
-    
     # Build comprehensive stop sequences
     stop_tokens = [
         "<|end|>", "<|user|>", "<|system|>",
@@ -561,6 +727,12 @@ def generate_with_model(prompt: str, max_tokens: int = 1024) -> str:
         "<thought>", "<thinking>", "<reasoning>", "<internal>",
         "Let me think", "Step 1:", "My reasoning:",
     ]
+
+
+    
+    if _phi3_model is None:
+        return ""
+
     
     # Check if using llama-cpp (GGUF model)
     try:
@@ -702,8 +874,8 @@ def generate_fallback_quiz(topic: str, num_questions: int, material_content: str
     return base_questions[:num_questions]
 
 
-def generate_flashcards(topic: str, num_cards: int, grade: int, material_content: str = None) -> list:
-    """Generate flashcards for a topic, optionally based on provided material content."""
+def generate_flashcards(topic: str, num_cards: int, grade: int, material_content: str = None, attachments: Optional[List[dict]] = None) -> list:
+    """Generate flashcards using local model + OCR."""
     global _phi3_model
     import json
     import re
@@ -717,13 +889,24 @@ Based on the following study material:
 {material_content[:2000]}
 ---
 """
+
+    # Extract OCR content
+    attachment_context = ""
+    if attachments:
+        try:
+             extracted = extract_text_from_attachments(attachments)
+             if extracted:
+                 attachment_context = f"\n\n[CONTENT FROM UPLOADED FILES]:\n{extracted}\n"
+        except Exception as e:
+            logger.error(f"OCR failed for flashcards: {e}")
     
     if _phi3_model is None:
         return generate_fallback_flashcards(topic, num_cards, material_content)
     
     prompt = f"""<|system|>
-You are an educational content creator for Grade {grade} students. Generate exactly {num_cards} flashcards about {topic}.
+You are an educational content creator for Grade {grade} students. Generate exactly {num_cards} flashcards about "{topic}".
 {material_context}
+{attachment_context}
 Return ONLY a valid JSON array with objects containing: front (term/question), back (definition/answer).
 Make flashcards relevant, educational, and grade-appropriate.
 <|end|>
@@ -770,12 +953,24 @@ def generate_fallback_flashcards(topic: str, num_cards: int, material_content: s
     return base_cards[:num_cards]
 
 
-def generate_summary(content: str, grade: int, topic: str = None) -> str:
-    """Generate a summary of the provided content."""
+def generate_summary(content: str, grade: int, topic: str = None, attachments: Optional[List[dict]] = None) -> str:
+    """Generate a summary of the provided content or attachments."""
     global _phi3_model
     
     topic_str = f" about {topic}" if topic else ""
+
+    # USE GEMINI LOGIC REMOVED - LOCAL OCR ONLY
     
+    # Extract OCR content
+    attachment_context = ""
+    if attachments:
+        try:
+             extracted = extract_text_from_attachments(attachments)
+             if extracted:
+                 attachment_context = f"\n\n[CONTENT FROM UPLOADED FILES]:\n{extracted}\n"
+        except Exception as e:
+            logger.error(f"OCR failed for summary: {e}")
+            
     if _phi3_model is None:
         return f"Summary of the content{topic_str}: This material covers key concepts and important information. The main points include the core ideas presented in the text."
     
@@ -786,6 +981,7 @@ You are an educational assistant for Grade {grade} students. Summarize the follo
 Please summarize this content:
 
 {content[:3000]}
+{attachment_context}
 <|end|>
 <|assistant|>
 """
@@ -813,14 +1009,6 @@ def generate_essay_feedback(essay_content: str, title: str, grade: int, topic: s
         return generate_fallback_essay_feedback(essay_content, title, grade)
     
     prompt = f"""<|system|>
-You are an essay grading assistant for Grade {grade} students. Grade the following essay{topic_str}.
-Provide constructive, encouraging feedback appropriate for the grade level.
-Return ONLY a valid JSON object with this exact format:
-{{"overallScore": 85, "categories": [{{"name": "Content & Ideas", "score": 80, "feedback": "specific feedback"}}, {{"name": "Organization", "score": 85, "feedback": "feedback"}}, {{"name": "Voice & Style", "score": 90, "feedback": "feedback"}}, {{"name": "Grammar & Mechanics", "score": 85, "feedback": "feedback"}}], "strengths": ["strength 1", "strength 2"], "improvements": ["improvement 1", "improvement 2"], "detailedFeedback": "detailed encouraging feedback"}}
-<|end|>
-<|user|>
-Grade this essay titled "{title}":
-
 {essay_content[:2500]}
 <|end|>
 <|assistant|>
@@ -952,3 +1140,63 @@ def generate_fallback_diagram(content: str, diagram_type: str) -> str:
       Detail 2.2
     Main Idea 3
       Detail 3.1"""
+
+
+def generate_report_feedback(student_profile: dict) -> str:
+    """Generate personalized progress report feedback using local model."""
+    global _phi3_model
+    
+    if _phi3_model is None:
+        return "Keep up the good work! Consistent practice is key to success."
+
+    # Extract profile data
+    name = student_profile.get("name", "Student")
+    grade = student_profile.get("grade", "N/A")
+    total_quizzes = student_profile.get("total_quizzes", 0)
+    avg_quiz = student_profile.get("average_quiz_score", 0.0)
+    total_essays = student_profile.get("total_essays", 0)
+    avg_essay = student_profile.get("average_essay_score", 0.0)
+    streak = student_profile.get("study_streak", 0)
+    mastered = student_profile.get("mastered_topics", [])
+    struggling = student_profile.get("struggling_topics", [])
+    patterns = student_profile.get("learning_patterns", [])
+    hints = student_profile.get("total_hints_used", 0)
+
+    # Format lists
+    mastered_str = ", ".join(mastered[:3]) if mastered else "None yet"
+    struggling_str = ", ".join(struggling[:3]) if struggling else "None identified"
+    patterns_str = ", ".join(patterns) if patterns else "None detected"
+
+    prompt = f"""<|system|>
+You are Toki, an encouraging AI tutor for a Grade {grade} student named {name}.
+Analyze the student's progress and provide brief, personalized feedback (3-4 sentences).
+
+Student Profile:
+- Quiz Performance: {avg_quiz:.1f}% average across {total_quizzes} quizzes.
+- Essay Writing: {avg_essay:.1f}% average across {total_essays} essays.
+- Study Streak: {streak} days.
+- Mastered Topics: {mastered_str} (High retention).
+- Topics Needing Focus: {struggling_str}.
+- Learning Style: {patterns_str}.
+- Reliance on Hints: Used {hints} hints (Usage > 10 suggests needing more review).
+
+Instructions:
+1. Acknowledge their effort and streak.
+2. Highlight a specific strength (quizzes, essays, or mastered topics).
+3. Gently point out where to focus (struggling topics or high hint usage).
+4. If they are a specific learner type (e.g., Visual), suggest a matching strategy.
+5. Keep tone encouraging and tailored to Grade {grade}.
+<|end|>
+<|user|>
+Generate personalized progress feedback.
+<|end|>
+<|assistant|>
+"""
+    
+    try:
+        response = generate_with_model(prompt, max_tokens=250)
+        return response if response else "Great job on your studies! Keep learning and growing."
+    except Exception as e:
+        logger.error(f"Report feedback generation failed: {e}")
+        return "Great job on your studies! Keep learning and growing."
+

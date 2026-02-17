@@ -35,7 +35,9 @@ load_dotenv()
 
 from config import get_settings
 from db import engine, verify_database_connection, init_database
+from migrations import run_migrations
 from ml_models import load_policy_model, load_phi3_model
+
 
 # Import routers
 from routers.auth_routes import router as auth_router
@@ -52,11 +54,10 @@ from routers.voice_routes import router as voice_router
 from routers.voice_routes_v2 import router as voice_v2_router
 from routers.ocr_routes import router as ocr_router
 from routers.report_routes import router as report_router
+from routers.library_routes import router as library_router
 from routers.admin_routes import router as admin_router
 
-# =============================================================================
-# Logging Configuration
-# =============================================================================
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -106,6 +107,8 @@ async def lifespan(app: FastAPI):
 
     logger.info("Step 1b: Initializing database tables...")
     init_database()
+    run_migrations()
+
     
     # Step 2: Load ML models
     logger.info("Step 2: Loading ML models...")
@@ -198,12 +201,15 @@ app.include_router(voice_router, prefix="/api")
 app.include_router(voice_v2_router, prefix="/api/v2")  # New voice routes with emotions
 app.include_router(ocr_router, prefix="/api")
 app.include_router(report_router, prefix="/api")  # Progress reports
+app.include_router(library_router, prefix="/api")  # Library
 app.include_router(admin_router, prefix="/api")  # Admin dashboard
+
+
 
 # Add WebSocket route at root level (not under /api prefix)
 # Re-export the websocket endpoint from voice_v2_router
-from routers.voice_routes_v2 import live_lecture_websocket
-app.add_api_websocket_route("/ws/live-lecture", live_lecture_websocket)
+# from routers.voice_routes_v2 import live_lecture_websocket
+# app.add_api_websocket_route("/ws/live-lecture", live_lecture_websocket)
 
 
 @app.get("/")

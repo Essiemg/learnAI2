@@ -15,6 +15,9 @@ Table Structure:
 - summaries: AI-generated summaries
 - diagrams: AI-generated diagrams
 - study_events: Study activity tracking
+- user_topic_states: Knowledge mastery tracking
+- learning_patterns: Cognitive behavioral signals
+
 
 All tables use UUID (stored as String) primary keys for security and scalability.
 """
@@ -86,8 +89,11 @@ class User(Base):
     quiz_sets = relationship("QuizSet", back_populates="user", cascade="all, delete-orphan")
     quiz_attempts = relationship("QuizAttempt", back_populates="user", cascade="all, delete-orphan")
     summaries = relationship("Summary", back_populates="user", cascade="all, delete-orphan")
+    essays = relationship("Essay", back_populates="user", cascade="all, delete-orphan")
     diagrams = relationship("Diagram", back_populates="user", cascade="all, delete-orphan")
     study_events = relationship("StudyEvent", back_populates="user", cascade="all, delete-orphan")
+    topic_states = relationship("UserTopicState", back_populates="user", cascade="all, delete-orphan")
+    learning_patterns = relationship("LearningPattern", back_populates="user", cascade="all, delete-orphan")
     # Legacy compatibility relationships
     chat_sessions = relationship("ChatSession", back_populates="user", cascade="all, delete-orphan")
     quiz_sessions = relationship("QuizSession", back_populates="user", cascade="all, delete-orphan")
@@ -158,6 +164,8 @@ class Interaction(Base):
     frustration = Column(Integer, default=0)  # Scale 0-10
     recent_accuracy = Column(Float, default=0.0)  # 0.0 to 1.0
     strategy = Column(String(100), nullable=True)  # Teaching strategy used
+    hints_used = Column(Integer, default=0)
+    time_to_response_ms = Column(Integer, default=0)
     was_helpful = Column(Boolean, nullable=True)  # User feedback
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -199,13 +207,56 @@ class StudyEvent(Base):
     event_type = Column(String(50), nullable=False)  # quiz, flashcard, chat, summary, diagram
     subject = Column(String(100), nullable=True)
     topic = Column(String(255), nullable=True)
+    session_id = Column(GUID, ForeignKey("sessions.id"), nullable=True)
     duration_seconds = Column(Integer, default=0)
     score = Column(Float, nullable=True)  # Optional score if applicable
     event_data = Column(JSON, nullable=True)  # Additional event-specific data (renamed from metadata)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relationships
+    # Relationships
     user = relationship("User", back_populates="study_events")
+    session = relationship("Session")  # No back_populate needed yet
+
+
+class UserTopicState(Base):
+    """
+    Tracks mastery and retention for a specific topic.
+    """
+    __tablename__ = "user_topic_states"
+
+    id = Column(GUID, primary_key=True, default=uuid.uuid4)
+    user_id = Column(GUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    subject = Column(String(100), nullable=False)
+    topic = Column(String(255), nullable=False)
+    mastery_level = Column(Float, default=0.0)  # 0-100
+    difficulty_level = Column(String(50), default="intermediate")  # beginner, intermediate, advanced
+    last_assessed_at = Column(DateTime, default=datetime.utcnow)
+    next_review_at = Column(DateTime, nullable=True)  # For spaced repetition
+    retention_score = Column(Float, default=1.0)  # 0.0 to 1.0 (decay factor)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", back_populates="topic_states")
+
+
+class LearningPattern(Base):
+    """
+    Inferred cognitive or behavioral patterns.
+    """
+    __tablename__ = "learning_patterns"
+
+    id = Column(GUID, primary_key=True, default=uuid.uuid4)
+    user_id = Column(GUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    pattern_type = Column(String(100), nullable=False)  # e.g., "VisualLearner", "FastPaced", "NeedsExamples"
+    confidence_score = Column(Float, default=0.5)  # 0.0 to 1.0
+    evidence_data = Column(JSON, nullable=True)  # What triggered this detection
+    detected_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", back_populates="learning_patterns")
+
 
 
 # =============================================================================
@@ -305,6 +356,8 @@ class QuizQuestion(Base):
     explanation = Column(Text, nullable=True)  # Explanation of the answer
     points = Column(Integer, default=1)
     position = Column(Integer, default=0)
+    difficulty = Column(String(20), default="medium")  # easy, medium, hard
+    misconception_tag = Column(String(255), nullable=True)  # Category of potential error
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relationships
@@ -330,6 +383,8 @@ class QuizAttempt(Base):
     completed = Column(Boolean, default=False)
     started_at = Column(DateTime, default=datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
 
     # Relationships
     user = relationship("User", back_populates="quiz_attempts")
@@ -351,6 +406,8 @@ class QuizAnswer(Base):
     user_answer = Column(Text, nullable=True)
     is_correct = Column(Boolean, default=False)
     points_earned = Column(Integer, default=0)
+    time_taken_ms = Column(Integer, nullable=True)  # Time to answer in milliseconds
+    confidence_level = Column(Integer, nullable=True)  # 1-5 self-reported confidence
     answered_at = Column(DateTime, default=datetime.utcnow)
 
     # Relationships
@@ -382,6 +439,28 @@ class Summary(Base):
 
     # Relationships
     user = relationship("User", back_populates="summaries")
+
+
+class Essay(Base):
+    """
+    Essay model.
+    
+    Stores user essays and AI feedback.
+    """
+    __tablename__ = "essays"
+
+    id = Column(GUID, primary_key=True, default=uuid.uuid4)
+    user_id = Column(GUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    title = Column(String(255), nullable=False)
+    topic = Column(String(255), nullable=True)
+    content = Column(Text, nullable=False)
+    feedback = Column(JSON, nullable=True)
+    score = Column(Float, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", back_populates="essays")
 
 
 class Diagram(Base):

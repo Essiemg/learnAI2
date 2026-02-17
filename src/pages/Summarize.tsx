@@ -21,7 +21,7 @@ interface SelectedMaterial {
 
 export default function Summarize() {
   const { user } = useAuth();
-  const { summaries, saveSummary, deleteSummary, isLoading: historyLoading } = useSummaryHistory();
+  const { summaries, saveSummary, deleteSummary, loadSummaries, isLoading: historyLoading } = useSummaryHistory();
   const [selectedMaterials, setSelectedMaterials] = useState<SelectedMaterial[]>([]);
   const [showMaterials, setShowMaterials] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -66,18 +66,22 @@ export default function Summarize() {
     setCurrentTitle(title);
 
     try {
-      const result = await summaryApi.generate(contentToSummarize, isBase64);
+      // Prepare attachments if selected
+      let attachments = undefined;
+      if (selectedMaterials.length > 0) {
+        attachments = selectedMaterials.map(m => ({
+          type: m.type || "application/octet-stream", // Fallback mime
+          content: m.base64
+        }));
+      }
+
+      const result = await summaryApi.generate(contentToSummarize, isBase64, attachments);
 
       if (result?.summary) {
         setSummary(result.summary);
-        // Auto-save summary
-        await saveSummary(
-          result.summary,
-          title,
-          isBase64 ? undefined : contentToSummarize,
-          selectedMaterials.length > 0 ? selectedMaterials[0].id : undefined
-        );
-        toast({ title: "Summary saved!" });
+        // Summary is auto-saved by backend, just reload list
+        await loadSummaries();
+        toast({ title: "Summary generated and saved!" });
       } else {
         throw new Error("No summary generated");
       }
@@ -235,7 +239,49 @@ export default function Summarize() {
 
             <div>
               <label className="block text-sm font-medium mb-2">
-                Or paste text directly
+                Or upload a file (Image/PDF)
+              </label>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => document.getElementById('summary-file-upload')?.click()}
+                  className="w-full"
+                >
+                  <FolderOpen className="h-4 w-4 mr-2" />
+                  {selectedMaterials.length > 0 && selectedMaterials[0].type !== 'study_set' ? selectedMaterials[0].name : "Upload File"}
+                </Button>
+                <input
+                  id="summary-file-upload"
+                  type="file"
+                  className="hidden"
+                  accept="image/*,.pdf"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onloadend = () => {
+                        const base64 = reader.result as string;
+                        setSelectedMaterials([{
+                          id: 'upload',
+                          name: file.name,
+                          type: file.type,
+                          base64: base64
+                        }]);
+                        setCustomText(""); // Clear text if file selected
+                        toast({ title: "File attached" });
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="text-center text-sm text-muted-foreground my-2">- OR -</div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                Paste text directly
               </label>
               <Textarea
                 placeholder="Paste your text here..."

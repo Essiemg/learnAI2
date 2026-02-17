@@ -22,7 +22,7 @@ interface SelectedMaterial {
 
 export default function Diagrams() {
   const { user } = useAuth();
-  const { diagrams, saveDiagram, deleteDiagram, isLoading: historyLoading } = useDiagramHistory();
+  const { diagrams, saveDiagram, deleteDiagram, loadDiagrams, isLoading: historyLoading } = useDiagramHistory();
   const [selectedMaterials, setSelectedMaterials] = useState<SelectedMaterial[]>([]);
   const [showMaterials, setShowMaterials] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -103,15 +103,9 @@ export default function Diagrams() {
 
       if (result?.mermaid_code) {
         setMermaidCode(result.mermaid_code);
-        // Auto-save diagram
-        await saveDiagram(
-          result.mermaid_code,
-          diagramType,
-          title,
-          isBase64 ? undefined : contentToVisualize,
-          selectedMaterials.length > 0 ? selectedMaterials[0].id : undefined
-        );
-        toast({ title: "Diagram saved!" });
+        // Diagram is auto-saved by backend, just reload list
+        await loadDiagrams();
+        toast({ title: "Diagram generated and saved!" });
       } else {
         throw new Error("No diagram generated");
       }
@@ -371,7 +365,7 @@ export default function Diagrams() {
               </div>
             ) : renderedSvg ? (
               <div className="space-y-4">
-                <div 
+                <div
                   className="mermaid-diagram bg-muted/50 rounded-lg p-4 overflow-auto"
                   dangerouslySetInnerHTML={{ __html: renderedSvg }}
                 />

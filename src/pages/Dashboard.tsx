@@ -102,7 +102,7 @@ export default function Dashboard() {
             tutorSessions: data.tutor_sessions || 0,
             flashcardsStudied: data.total_flashcards || 0,
             quizzesCompleted: data.total_quizzes || 0,
-            essaysSubmitted: data.total_summaries || 0, // Mapping summaries to essays/writing
+            essaysSubmitted: (data.total_essays || 0) + (data.total_summaries || 0),
           });
         }
       } catch (error) {

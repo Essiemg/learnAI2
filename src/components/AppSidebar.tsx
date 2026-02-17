@@ -1,4 +1,4 @@
-import { Home, LayoutDashboard, Bot, Layers, ClipboardList, FileText, CalendarDays, User, LogIn, Settings, Shield, Users, ScrollText, GitBranch, FolderOpen } from "lucide-react";
+import { Home, LayoutDashboard, Bot, Layers, ClipboardList, FileText, CalendarDays, User, LogIn, Settings, Shield, Users, ScrollText, GitBranch, FolderOpen, Library } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -22,10 +22,11 @@ import {
 const mainNavItems = [
   { title: "Homepage", url: "/", icon: Home },
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+  { title: "Library", url: "/library", icon: Library },
   { title: "Study Sets", url: "/study-sets", icon: FolderOpen },
   { title: "AI Tutor", url: "/tutor", icon: Bot },
-  { title: "Flashcards", url: "/flashcards", icon: Layers },
-  { title: "Quizzes", url: "/quizzes", icon: ClipboardList },
+  { title: "Flashcards", url: "/flashcards", icon: ClipboardList },
+  { title: "Quizzes", url: "/quizzes", icon: FileText },
   { title: "Essays", url: "/essays", icon: FileText },
   { title: "Summarize", url: "/summarize", icon: ScrollText },
   { title: "Diagrams", url: "/diagrams", icon: GitBranch },
@@ -67,9 +68,9 @@ export function AppSidebar() {
       <SidebarHeader className="border-b border-border/50">
         <div className="flex items-center justify-center gap-2 px-2 py-4">
           <div className={`rounded-lg overflow-hidden bg-gradient-to-br from-primary/20 to-accent/20 p-0.5 ${collapsed ? "h-10 w-10" : "h-12 w-12"}`}>
-            <img 
-              src="/owl - illustrationImage.png" 
-              alt="Toki Logo" 
+            <img
+              src="/owl - illustrationImage.png"
+              alt="Toki Logo"
               className="h-full w-full object-cover rounded-md"
             />
           </div>

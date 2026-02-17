@@ -43,22 +43,15 @@ export default function DashboardOverview() {
         queryFn: () => adminApi.getActivityLog(10),
     });
 
-    // Mock data for charts
-    const activityData = [
-        { name: "Mon", quizzes: 4, flashcards: 2, interactions: 10 },
-        { name: "Tue", quizzes: 3, flashcards: 5, interactions: 15 },
-        { name: "Wed", quizzes: 7, flashcards: 8, interactions: 20 },
-        { name: "Thu", quizzes: 5, flashcards: 4, interactions: 12 },
-        { name: "Fri", quizzes: 8, flashcards: 10, interactions: 25 },
-        { name: "Sat", quizzes: 12, flashcards: 15, interactions: 30 },
-        { name: "Sun", quizzes: 10, flashcards: 8, interactions: 18 },
-    ];
+    const { data: activityData, isLoading: isLoadingTrends } = useQuery({
+        queryKey: ["admin-trends"],
+        queryFn: adminApi.getTrends,
+    });
 
-    const roleData = [
-        { name: "Students", value: 400, color: "#0088FE" },
-        { name: "Admins", value: 10, color: "#00C49F" },
-        { name: "Parents", value: 50, color: "#FFBB28" },
-    ];
+    const { data: roleData, isLoading: isLoadingRoles } = useQuery({
+        queryKey: ["admin-roles"],
+        queryFn: adminApi.getRoleDistribution,
+    });
 
     const flaggedData = [
         { id: 1, user: "john.doe", reason: "Inappropriate language", output: "Topic: Biology", time: "2 mins ago" },
@@ -169,7 +162,7 @@ export default function DashboardOverview() {
                             <ResponsiveContainer width="100%" height="100%">
                                 <PieChart>
                                     <Pie
-                                        data={roleData}
+                                        data={roleData || []}
                                         cx="50%"
                                         cy="50%"
                                         innerRadius={60}
@@ -177,7 +170,7 @@ export default function DashboardOverview() {
                                         paddingAngle={5}
                                         dataKey="value"
                                     >
-                                        {roleData.map((entry, index) => (
+                                        {(roleData || []).map((entry, index) => (
                                             <Cell key={`cell-${index}`} fill={entry.color} />
                                         ))}
                                     </Pie>
@@ -186,7 +179,7 @@ export default function DashboardOverview() {
                             </ResponsiveContainer>
                         </div>
                         <div className="flex justify-center gap-4 mt-4">
-                            {roleData.map((entry, index) => (
+                            {(roleData || []).map((entry, index) => (
                                 <div key={index} className="flex items-center gap-2">
                                     <div className="w-3 h-3 rounded-full" style={{ backgroundColor: entry.color }} />
                                     <span className="text-xs text-muted-foreground">{entry.name}</span>

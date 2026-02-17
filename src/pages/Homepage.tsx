@@ -81,300 +81,148 @@ export default function Homepage() {
 
   return (
     <div className="min-h-full">
-      {/* Hero Section - Split Layout */}
-      <section className="relative overflow-hidden min-h-[calc(100vh-3rem)] flex items-center justify-center">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-accent/5 to-transparent" />
+      {/* Hero Section - Centered High-Impact */}
+      <section className="relative overflow-hidden pt-20 pb-32">
+        <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-background to-background" />
 
-        <div className="relative w-full max-w-7xl mx-auto px-6 py-12">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
-            {/* Left Side - Content */}
-            <div className="space-y-8">
-              <div className="space-y-4">
-                <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight">
-                  Meet{" "}
-                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">
-                    Toki
-                  </span>
-                </h1>
-                <p className="text-lg md:text-xl text-muted-foreground max-w-lg">
-                  Your personal AI homework companion that helps you understand, not just answer.
-                  Built for learners from Primary to College.
-                </p>
-              </div>
+        <div className="relative max-w-7xl mx-auto px-6 text-center space-y-8">
+          {/* Badge */}
+          <div className="inline-flex items-center rounded-full border px-4 py-1.5 text-sm font-medium bg-muted/50 backdrop-blur-sm animate-fade-in-up">
+            <span className="flex h-2 w-2 rounded-full bg-green-500 mr-2"></span>
+            New: Live Voice Tutoring is here!
+          </div>
 
-              {/* About Toki - Compact */}
-              <div className="bg-card/50 backdrop-blur-sm border rounded-2xl p-6 space-y-4">
-                <h2 className="text-xl font-semibold">About Toki</h2>
-                <p className="text-muted-foreground text-sm leading-relaxed">
-                  Toki is an AI-powered learning companion designed to help students think critically,
-                  not just get answers. Using the Socratic method, Toki guides you through problems
-                  step-by-step, building understanding and confidence along the way.
-                </p>
+          {/* Headline */}
+          <h1 className="text-5xl md:text-7xl font-bold tracking-tight max-w-4xl mx-auto leading-tight animate-fade-in-up delay-100">
+            The AI Tutor That Actually
+            <span className="block mt-2 text-transparent bg-clip-text bg-gradient-to-r from-primary via-accent to-primary animate-gradient">
+              Helps You Understand
+            </span>
+          </h1>
 
-                {/* Education Levels */}
-                <div className="grid grid-cols-3 gap-3 pt-2">
-                  {educationLevels.map((level) => (
-                    <div key={level.title} className="text-center p-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors">
-                      <level.icon className="h-6 w-6 mx-auto mb-2 text-primary" />
-                      <div className="font-semibold text-sm">{level.title}</div>
-                      <div className="text-xs text-muted-foreground">{level.grades}</div>
-                    </div>
-                  ))}
+          {/* Subheadline */}
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto animate-fade-in-up delay-200">
+            Stop just getting answers. Start mastering concepts. Upload any homework, lecture, or textbook, and Toki will turn it into personalized quizzes, flashcards, and interactive tutoring sessions instantly.
+          </p>
+
+          {/* CTA Buttons */}
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-4 animate-fade-in-up delay-300">
+            <Button
+              size="lg"
+              onClick={() => navigate("/tutor")}
+              className="h-14 px-8 text-lg rounded-full shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-all hover:scale-105"
+            >
+              Start Learning for Free
+              <ArrowRight className="ml-2 h-5 w-5" />
+            </Button>
+            {!user && (
+              <Button
+                size="lg"
+                variant="outline"
+                onClick={() => navigate("/signup")}
+                className="h-14 px-8 text-lg rounded-full border-2 hover:bg-muted/50 transition-all"
+              >
+                View Demo
+              </Button>
+            )}
+          </div>
+
+          {/* Platform Preview Mockup */}
+          <div className="mt-20 relative mx-auto max-w-5xl rounded-xl border bg-background shadow-2xl overflow-hidden animate-fade-in-up delay-500 group">
+            <div className="absolute inset-0 bg-gradient-to-tr from-primary/10 via-transparent to-accent/10 pointer-events-none" />
+
+            {/* Window Controls */}
+            <div className="h-10 border-b bg-muted/30 flex items-center px-4 gap-2">
+              <div className="h-3 w-3 rounded-full bg-red-400/80" />
+              <div className="h-3 w-3 rounded-full bg-amber-400/80" />
+              <div className="h-3 w-3 rounded-full bg-green-400/80" />
+              <div className="ml-4 h-5 w-64 rounded-md bg-muted/50" />
+            </div>
+
+            {/* Mock Interface Content */}
+            <div className="grid md:grid-cols-[280px_1fr] h-[400px] md:h-[600px] bg-background">
+              {/* Mock Sidebar */}
+              <div className="border-r bg-muted/10 p-4 hidden md:flex flex-col gap-4">
+                <div className="space-y-2">
+                  <div className="h-8 w-full rounded-md bg-primary/10 flex items-center px-3 text-primary font-medium text-sm">
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    AI Tutor
+                  </div>
+                  <div className="h-8 w-full rounded-md hover:bg-muted/50 flex items-center px-3 text-muted-foreground text-sm">
+                    <BookOpen className="h-4 w-4 mr-2" />
+                    Flashcards
+                  </div>
+                  <div className="h-8 w-full rounded-md hover:bg-muted/50 flex items-center px-3 text-muted-foreground text-sm">
+                    <Trophy className="h-4 w-4 mr-2" />
+                    Quizzes
+                  </div>
+                </div>
+
+                <div className="mt-auto p-4 rounded-xl bg-gradient-to-br from-primary/10 to-accent/10 border border-primary/10">
+                  <div className="text-xs font-semibold text-primary mb-1">Weekly Streak</div>
+                  <div className="text-2xl font-bold">5 Days 🔥</div>
                 </div>
               </div>
 
-              {/* CTA Buttons */}
-              <div className="flex flex-col sm:flex-row gap-4">
-                <Button
-                  size="lg"
-                  onClick={() => navigate("/tutor")}
-                  className="gap-2 text-base"
-                >
-                  Start Learning
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-                {!user && (
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    onClick={() => navigate("/signup")}
-                    className="text-base"
-                  >
-                    Create Free Account
-                  </Button>
-                )}
+              {/* Mock Chat Area */}
+              <div className="flex flex-col">
+                <div className="flex-1 p-6 space-y-6 overflow-hidden relative">
+                  {/* User Message */}
+                  <div className="flex justify-end">
+                    <div className="bg-primary text-primary-foreground px-5 py-3 rounded-2xl rounded-tr-sm max-w-[80%] shadow-md">
+                      <p>Can you explain photosynthesis like I'm 10?</p>
+                    </div>
+                  </div>
+
+                  {/* AI Response */}
+                  <div className="flex justify-start gap-4">
+                    <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center shrink-0 shadow-sm">
+                      <Brain className="h-5 w-5 text-white" />
+                    </div>
+                    <div className="bg-muted px-6 py-4 rounded-2xl rounded-tl-sm max-w-[85%] border shadow-sm space-y-3">
+                      <p>Currently, think of a plant like a tiny solar-powered chef! 👨‍🍳☀️</p>
+                      <p>Here's the recipe for its food:</p>
+                      <ul className="list-disc pl-5 space-y-1 text-sm">
+                        <li><strong>Sunlight</strong> (The energy)</li>
+                        <li><strong>Water</strong> (From the soil)</li>
+                        <li><strong>Air</strong> (Carbon dioxide)</li>
+                      </ul>
+                      <p>The plant mixes these in its leaves (the kitchen) to make sugar for energy and releases oxygen for us to breathe! 🌱</p>
+                    </div>
+                  </div>
+
+                  {/* Floating Elements (Visual Interest) */}
+                  <div className="absolute bottom-20 right-10 p-4 bg-card rounded-xl border shadow-lg animate-bounce duration-[3000ms] hidden lg:block">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
+                        <Trophy className="h-5 w-5 text-green-600" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold">Quiz Aced!</div>
+                        <div className="text-xs text-muted-foreground">Photosynthesis Basics</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="absolute top-20 left-10 p-3 bg-card rounded-xl border shadow-lg animate-pulse hidden lg:block">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <Zap className="h-4 w-4 text-amber-500" />
+                      <span>Insight detected</span>
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* Mock Input */}
+                <div className="p-4 border-t bg-background/50 backdrop-blur-sm">
+                  <div className="h-12 border rounded-full bg-muted/30 px-4 flex items-center justify-between text-muted-foreground/50 text-sm">
+                    <span>Ask Toki anything...</span>
+                    <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center">
+                      <ArrowRight className="h-4 w-4 text-white" />
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
-
-            {/* Right Side - AI Tutor Scene */}
-            <div className="relative h-[500px] lg:h-[600px] hidden lg:block">
-              <svg
-                viewBox="0 0 500 600"
-                className="w-full h-full drop-shadow-2xl"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <defs>
-                  {/* Gradients */}
-                  <linearGradient id="deskGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#DEB887" />
-                    <stop offset="50%" stopColor="#D2B48C" />
-                    <stop offset="100%" stopColor="#C4A574" />
-                  </linearGradient>
-                  <linearGradient id="tabletGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#2D3748" />
-                    <stop offset="100%" stopColor="#1A202C" />
-                  </linearGradient>
-                  <linearGradient id="screenGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                    <stop offset="0%" stopColor="#4FD1C5" />
-                    <stop offset="50%" stopColor="#38B2AC" />
-                    <stop offset="100%" stopColor="#319795" />
-                  </linearGradient>
-                  <linearGradient id="glowGrad" x1="0%" y1="100%" x2="0%" y2="0%">
-                    <stop offset="0%" stopColor="#4FD1C5" stopOpacity="0.8" />
-                    <stop offset="100%" stopColor="#81E6D9" stopOpacity="0" />
-                  </linearGradient>
-                  <linearGradient id="heroGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="hsl(var(--primary))" />
-                    <stop offset="100%" stopColor="hsl(var(--accent))" />
-                  </linearGradient>
-                  <linearGradient id="capeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#805AD5" />
-                    <stop offset="100%" stopColor="#6B46C1" />
-                  </linearGradient>
-                  <linearGradient id="skinGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                    <stop offset="0%" stopColor="#FFDAB9" />
-                    <stop offset="100%" stopColor="#F5CBA7" />
-                  </linearGradient>
-                  <linearGradient id="paperGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                    <stop offset="0%" stopColor="#FFFFFF" />
-                    <stop offset="100%" stopColor="#F7FAFC" />
-                  </linearGradient>
-                  <linearGradient id="wandGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#F6E05E" />
-                    <stop offset="100%" stopColor="#ECC94B" />
-                  </linearGradient>
-
-                  {/* Filters */}
-                  <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
-                    <feDropShadow dx="2" dy="4" stdDeviation="8" floodColor="#000" floodOpacity="0.15" />
-                  </filter>
-                  <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-                    <feGaussianBlur stdDeviation="4" result="coloredBlur" />
-                    <feMerge>
-                      <feMergeNode in="coloredBlur" />
-                      <feMergeNode in="SourceGraphic" />
-                    </feMerge>
-                  </filter>
-                  <filter id="strongGlow" x="-100%" y="-100%" width="300%" height="300%">
-                    <feGaussianBlur stdDeviation="8" result="coloredBlur" />
-                    <feMerge>
-                      <feMergeNode in="coloredBlur" />
-                      <feMergeNode in="coloredBlur" />
-                      <feMergeNode in="SourceGraphic" />
-                    </feMerge>
-                  </filter>
-                </defs>
-
-                {/* Wooden Desk */}
-                <ellipse cx="250" cy="520" rx="220" ry="60" fill="url(#deskGrad)" filter="url(#softShadow)" />
-                <ellipse cx="250" cy="520" rx="200" ry="50" fill="#C9A66B" opacity="0.3" />
-                {/* Wood grain lines */}
-                <path d="M80 510 Q150 505 200 515 Q280 525 400 510" fill="none" stroke="#B8956E" strokeWidth="1" opacity="0.4" />
-                <path d="M100 530 Q180 535 250 528 Q350 520 380 535" fill="none" stroke="#B8956E" strokeWidth="1" opacity="0.3" />
-
-                {/* Paper Worksheet */}
-                <g filter="url(#softShadow)">
-                  <rect x="280" y="380" width="140" height="180" rx="3" fill="url(#paperGrad)" transform="rotate(-5, 350, 470)" />
-                  {/* Paper lines */}
-                  <g transform="rotate(-5, 350, 470)" opacity="0.3">
-                    <line x1="295" y1="410" x2="405" y2="410" stroke="#CBD5E0" strokeWidth="1" />
-                    <line x1="295" y1="430" x2="405" y2="430" stroke="#CBD5E0" strokeWidth="1" />
-                    <line x1="295" y1="450" x2="405" y2="450" stroke="#CBD5E0" strokeWidth="1" />
-                    <line x1="295" y1="470" x2="405" y2="470" stroke="#CBD5E0" strokeWidth="1" />
-                    <line x1="295" y1="490" x2="405" y2="490" stroke="#CBD5E0" strokeWidth="1" />
-                    <line x1="295" y1="510" x2="405" y2="510" stroke="#CBD5E0" strokeWidth="1" />
-                  </g>
-                  {/* Math problems */}
-                  <g transform="rotate(-5, 350, 470)" fontFamily="Comic Sans MS, cursive" fontSize="14">
-                    <text x="300" y="425" fill="#2D3748">5 + 3 = ___</text>
-                    <text x="300" y="465" fill="#2D3748">12 - 7 = ___</text>
-                    {/* Highlighted problem - glowing */}
-                    <g filter="url(#strongGlow)">
-                      <text x="300" y="505" fill="hsl(var(--accent))" fontWeight="bold">
-                        8 × 4 = ?
-                      </text>
-                    </g>
-                  </g>
-                </g>
-
-                {/* Tablet */}
-                <g filter="url(#softShadow)">
-                  <rect x="80" y="300" width="180" height="240" rx="15" fill="url(#tabletGrad)" />
-                  {/* Screen */}
-                  <rect x="92" y="315" width="156" height="210" rx="8" fill="url(#screenGrad)" />
-                  {/* Screen glow effect */}
-                  <rect x="92" y="315" width="156" height="210" rx="8" fill="url(#glowGrad)" opacity="0.5" />
-                  {/* Home button */}
-                  <circle cx="170" cy="535" r="8" fill="#4A5568" />
-                </g>
-
-                {/* Light burst from tablet */}
-                <g opacity="0.6">
-                  <ellipse cx="170" cy="380" rx="100" ry="80" fill="url(#glowGrad)" opacity="0.3" />
-                </g>
-
-                {/* AI Tutor Superhero Character - Emerging from tablet */}
-                <g className="ai-tutor" filter="url(#glow)">
-                  {/* Glow aura behind character */}
-                  <ellipse cx="170" cy="280" rx="60" ry="70" fill="hsl(var(--primary))" opacity="0.2" />
-
-                  {/* Cape */}
-                  <path d="M130 220 Q115 280 125 340 L170 320 L215 340 Q225 280 210 220 Z" fill="url(#capeGrad)" opacity="0.9" />
-
-                  {/* Body */}
-                  <ellipse cx="170" cy="280" rx="35" ry="45" fill="url(#heroGrad)" />
-
-                  {/* Hero emblem on chest */}
-                  <circle cx="170" cy="275" r="12" fill="white" opacity="0.9" />
-                  <text x="164" y="280" fontSize="14" fill="hsl(var(--primary))" fontWeight="bold">T</text>
-
-                  {/* Head */}
-                  <circle cx="170" cy="200" r="35" fill="url(#skinGrad)" />
-
-                  {/* Friendly face */}
-                  {/* Eyes - big and friendly */}
-                  <ellipse cx="158" cy="195" rx="10" ry="12" fill="white" />
-                  <ellipse cx="182" cy="195" rx="10" ry="12" fill="white" />
-                  <circle cx="160" cy="197" r="6" fill="#2D3748" />
-                  <circle cx="184" cy="197" r="6" fill="#2D3748" />
-                  {/* Eye sparkle */}
-                  <circle cx="162" cy="194" r="2" fill="white" />
-                  <circle cx="186" cy="194" r="2" fill="white" />
-
-                  {/* Eyebrows - friendly */}
-                  <path d="M148 182 Q158 178 168 182" fill="none" stroke="#4A5568" strokeWidth="2" strokeLinecap="round" />
-                  <path d="M172 182 Q182 178 192 182" fill="none" stroke="#4A5568" strokeWidth="2" strokeLinecap="round" />
-
-                  {/* Big warm smile */}
-                  <path d="M155 212 Q170 228 185 212" fill="none" stroke="#E53E3E" strokeWidth="3" strokeLinecap="round" />
-
-                  {/* Rosy cheeks */}
-                  <ellipse cx="145" cy="205" rx="8" ry="5" fill="#FEB2B2" opacity="0.6" />
-                  <ellipse cx="195" cy="205" rx="8" ry="5" fill="#FEB2B2" opacity="0.6" />
-
-                  {/* Hair/helmet */}
-                  <path d="M135 185 Q135 155 170 150 Q205 155 205 185" fill="url(#heroGrad)" />
-
-                  {/* Left arm - waving */}
-                  <g>
-                    <path d="M135 260 Q110 250 100 230" fill="none" stroke="url(#heroGrad)" strokeWidth="12" strokeLinecap="round" />
-                    <circle cx="95" cy="218" r="10" fill="url(#skinGrad)" />
-                  </g>
-
-                  {/* Right arm - holding wand pointing at paper */}
-                  <path d="M205 260 Q240 280 280 350" fill="none" stroke="url(#heroGrad)" strokeWidth="12" strokeLinecap="round" />
-                  <circle cx="283" cy="355" r="10" fill="url(#skinGrad)" />
-
-                  {/* Magic Wand */}
-                  <g filter="url(#glow)">
-                    <line x1="290" y1="360" x2="330" y2="420" stroke="url(#wandGrad)" strokeWidth="6" strokeLinecap="round" />
-                    {/* Star on wand tip */}
-                    <polygon
-                      points="335,430 338,440 348,440 340,447 343,457 335,450 327,457 330,447 322,440 332,440"
-                      fill="#F6E05E"
-                      filter="url(#strongGlow)"
-                    />
-                  </g>
-
-                  {/* Magic sparkles from wand to paper */}
-                  <g>
-                    <circle cx="340" cy="450" r="3" fill="#F6E05E" filter="url(#glow)" />
-                    <circle cx="355" cy="465" r="2" fill="hsl(var(--accent))" filter="url(#glow)" />
-                    <circle cx="348" cy="475" r="2.5" fill="#F6E05E" filter="url(#glow)" />
-                  </g>
-                </g>
-
-                {/* Child's Hand pointing */}
-                <g filter="url(#softShadow)">
-                  {/* Arm coming from bottom right */}
-                  <path d="M480 580 Q450 520 400 480" fill="none" stroke="#FFDAB9" strokeWidth="25" strokeLinecap="round" />
-                  {/* Hand */}
-                  <ellipse cx="395" cy="475" rx="20" ry="15" fill="url(#skinGrad)" transform="rotate(-30, 395, 475)" />
-                  {/* Pointing finger */}
-                  <path d="M385 465 Q370 450 355 445" fill="none" stroke="url(#skinGrad)" strokeWidth="10" strokeLinecap="round" />
-                  {/* Other fingers curled */}
-                  <path d="M400 480 Q405 495 400 505" fill="none" stroke="url(#skinGrad)" strokeWidth="7" strokeLinecap="round" />
-                  <path d="M408 478 Q415 490 412 500" fill="none" stroke="url(#skinGrad)" strokeWidth="6" strokeLinecap="round" />
-                  {/* Sleeve */}
-                  <path d="M480 590 Q460 560 445 530" fill="none" stroke="#63B3ED" strokeWidth="30" strokeLinecap="round" />
-                </g>
-
-                {/* Voice Wave Ripples - from child toward AI */}
-                <g className="voice-waves" opacity="0.7">
-                  <path d="M380 460 Q330 400 250 350" fill="none" stroke="hsl(var(--primary))" strokeWidth="3" strokeDasharray="8 4" opacity="0.6" />
-                  <path d="M375 450 Q320 395 240 340" fill="none" stroke="hsl(var(--accent))" strokeWidth="2" strokeDasharray="6 3" opacity="0.5" />
-                  <path d="M370 440 Q310 385 230 330" fill="none" stroke="hsl(var(--primary))" strokeWidth="2" strokeDasharray="4 4" opacity="0.4" />
-
-                  {/* Sound wave circles */}
-                  <circle cx="360" cy="430" r="8" fill="none" stroke="hsl(var(--primary))" strokeWidth="2" opacity="0.8" />
-                  <circle cx="360" cy="430" r="16" fill="none" stroke="hsl(var(--accent))" strokeWidth="2" opacity="0.6" />
-                </g>
-
-                {/* Floating sparkles/particles */}
-                <g className="particles">
-                  <circle cx="120" cy="250" r="3" fill="hsl(var(--accent))" />
-                  <circle cx="220" cy="270" r="2" fill="hsl(var(--primary))" />
-                  <circle cx="150" cy="350" r="2.5" fill="#F6E05E" />
-                  <circle cx="80" cy="300" r="2" fill="hsl(var(--accent))" />
-                </g>
-
-                {/* Subtle ambient light rays */}
-                <g opacity="0.1">
-                  <path d="M170 315 L140 450" stroke="white" strokeWidth="20" />
-                  <path d="M170 315 L200 450" stroke="white" strokeWidth="15" />
-                  <path d="M170 315 L100 400" stroke="white" strokeWidth="10" />
-                </g>
-              </svg>
             </div>
           </div>
         </div>

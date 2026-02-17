@@ -38,10 +38,10 @@ export function TokiChat() {
 
   // Default to grade 5 if not set to prevent blocking input
   const effectiveGradeLevel = profile?.grade_level || gradeLevel || 5;
-  
+
   // Build education context for personalized AI
   const subjectNames = userSubjects.map(s => s.name);
-  
+
   // Build learner profile for adaptive responses
   const learnerProfile = buildLearnerProfile(
     userEducation?.education_level || "primary",
@@ -53,33 +53,51 @@ export function TokiChat() {
   const handleInteraction = useCallback((topic: string, message: string) => {
     trackInteraction(topic, message);
   }, [trackInteraction]);
-  
+
+  const {
+    sessions,
+    currentSessionId,
+    saveSession,
+    loadSession,
+    deleteSession,
+    startNewSession,
+    addMessageToSession,
+  } = useChatHistory();
+
+  // Handle persistent message saving
+  const handleMessageSent = useCallback(async (role: "user" | "assistant", content: string) => {
+    // If no current session, create one
+    let targetSessionId = currentSessionId;
+    if (!targetSessionId) {
+      const newSession = await saveSession([], "New Chat"); // Create empty session
+      if (newSession) {
+        targetSessionId = newSession;
+      }
+    }
+
+    if (targetSessionId) {
+      await addMessageToSession(targetSessionId, role, content);
+    }
+  }, [currentSessionId, saveSession, addMessageToSession]);
+
   const { messages, isLoading, error, sendMessage, clearMessages, setMessages } = useChat({
     gradeLevel: effectiveGradeLevel,
-    educationLevel: userEducation?.education_level,
+    educationLevel: userEducation?.education_level as any, // Cast to any to fix type mismatch for now
     fieldOfStudy: userEducation?.field_of_study,
     subjects: subjectNames,
     learnerProfile,
     userName: profile?.display_name,
     onInteraction: handleInteraction,
+    onMessageSent: handleMessageSent,
   });
 
-  const {
-    sessions,
-    saveSession,
-    loadSession,
-    deleteSession,
-    startNewSession,
-  } = useChatHistory();
 
-  // Track if greeting has been shown
-  const greetingShownRef = useRef(false);
 
   // Live Lecture mode - handles voice transcription and AI responses
   const handleLiveLectureTranscript = useCallback(
     (text: string, isUser: boolean) => {
       if (!text.trim()) return;
-      
+
       // Add the transcript/response to the chat messages for display
       const newMessage = {
         id: `live-${Date.now()}-${Math.random().toString(36).substring(7)}`,
@@ -87,15 +105,18 @@ export function TokiChat() {
         content: text,
         timestamp: new Date(),
       };
-      
+
       // Update messages state to show in chat
       if (setMessages) {
         setMessages((prev) => [...prev, newMessage]);
       }
-      
+
+      // Also persist live transcriptions
+      handleMessageSent(isUser ? "user" : "assistant", text);
+
       console.log(isUser ? "User said:" : "AI said:", text);
     },
-    [setMessages]
+    [setMessages, handleMessageSent]
   );
 
   const handleLiveLectureError = useCallback((error: string) => {
@@ -117,30 +138,18 @@ export function TokiChat() {
     onError: handleLiveLectureError,
   });
 
-  // Auto-save chat session
+  // Load session messages when selected
   useEffect(() => {
-    if (user && messages.length > 0 && !isLoading) {
-      const timeoutId = setTimeout(() => {
-        saveSession(messages);
-      }, 2000);
-      return () => clearTimeout(timeoutId);
+    if (currentSessionId) {
+      const loadedMessages = loadSession(currentSessionId);
+      if (loadedMessages && setMessages) {
+        setMessages(loadedMessages);
+      }
     }
-  }, [messages, user, isLoading, saveSession]);
+  }, [currentSessionId, loadSession, setMessages]);
 
-  // Show personalized greeting when chat is empty
-  useEffect(() => {
-    if (messages.length === 0 && !isLiveMode && !authLoading && !greetingShownRef.current) {
-      greetingShownRef.current = true;
-      const userName = profile?.display_name || "there";
-      const greeting = {
-        id: "greeting-" + Date.now(),
-        role: "assistant" as const,
-        content: `Hi ${userName}, I'm Toki, what do you want to learn about today?`,
-        timestamp: new Date(),
-      };
-      setMessages([greeting]);
-    }
-  }, [messages.length, isLiveMode, authLoading, profile?.display_name, setMessages]);
+
+
 
   useEffect(() => {
     if (error) {
@@ -151,7 +160,7 @@ export function TokiChat() {
   const handleSend = (message: string, imageData?: string, files?: { id: string; name: string; type: string; base64: string }[]) => {
     // Check for files - prioritize in order: explicit imageData, image files, then other files (like PDFs)
     let fileToSend = imageData;
-    
+
     if (!fileToSend && files && files.length > 0) {
       // First check for images
       const imageFile = files.find(f => f.type.startsWith("image/"));
@@ -163,12 +172,14 @@ export function TokiChat() {
         fileToSend = files[0].base64;
       }
     }
-    
-    sendMessage(message, fileToSend);
+
+    // Pass both legacy imageData (if any) and the full files array
+    // The useChat hook handles merging them
+    sendMessage(message, fileToSend, files?.map(f => ({ type: f.type, base64: f.base64 })));
   };
 
   const handleNewChat = () => {
-    greetingShownRef.current = false; // Reset greeting for new chat
+
     clearMessages();
     startNewSession();
     resetSessionStats(); // Reset learning analytics for new conversation
@@ -260,6 +271,11 @@ export function TokiChat() {
     );
   }
 
+  // Filter out legacy greeting messages
+  const filteredMessages = messages.filter(m =>
+    !m.content.includes("what do you want to learn about today?")
+  );
+
   return (
     <div className="flex flex-col h-screen max-h-screen bg-background">
       <div className="flex items-center justify-between border-b px-4">
@@ -281,10 +297,11 @@ export function TokiChat() {
           />
         </div>
       </div>
-      <ChatContainer 
-        messages={messages} 
-        isLoading={isLoading} 
-        userName={profile?.display_name || ""} 
+
+      <ChatContainer
+        messages={filteredMessages}
+        isLoading={isLoading}
+        userName={profile?.display_name || ""}
         isLiveMode={isLiveMode}
         isListening={isListening}
         isSpeaking={isSpeaking}

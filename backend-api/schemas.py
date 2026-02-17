@@ -47,6 +47,12 @@ class UserProfile(BaseModel):
 
 # ============== Tutor Schemas ==============
 
+class Attachment(BaseModel):
+    """Schema for file attachment."""
+    type: str  # mime type
+    content: str  # base64 content
+
+
 class TutorRequest(BaseModel):
     """Schema for tutor request."""
     subject: str = Field(..., min_length=1)
@@ -55,6 +61,8 @@ class TutorRequest(BaseModel):
     time_spent: int = Field(default=0, ge=0)  # seconds
     frustration: int = Field(default=0, ge=0, le=10)
     recent_accuracy: float = Field(default=0.0, ge=0.0, le=1.0)
+    hints_used: int = Field(default=0, ge=0)
+    attachments: Optional[List[Attachment]] = None
 
 
 class TutorResponse(BaseModel):
@@ -177,6 +185,11 @@ class QuizSubmit(BaseModel):
     answers: List[int]
 
 
+class QuizProgressUpdate(BaseModel):
+    """Schema for updating quiz progress."""
+    answers: List[int]
+
+
 # ============== Flashcard Schemas ==============
 
 class Flashcard(BaseModel):
@@ -190,6 +203,24 @@ class FlashcardGenerateRequest(BaseModel):
     topic: str
     num_cards: int = Field(default=10, ge=1, le=50)
     material_content: Optional[str] = Field(default=None, description="Optional study material content to base flashcards on")
+    attachments: Optional[List[Attachment]] = None
+
+
+class SummaryGenerateRequest(BaseModel):
+    """Schema for generating a summary."""
+    content: str
+    topic: Optional[str] = None
+    is_base64: bool = False
+    attachments: Optional[List[Attachment]] = None
+
+
+class SummaryResponse(BaseModel):
+    """Schema for summary response."""
+    summary: str
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
 
 
 class FlashcardSessionResponse(BaseModel):
